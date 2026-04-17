@@ -1,0 +1,62 @@
+{
+  "pages": [
+    {
+      "path": "pages/subscriptions/index",
+      "style": {
+        "navigationBarTitleText": "订阅源管理"
+      }
+    },
+    {
+      "path": "pages/content/index",
+      "style": {
+        "navigationBarTitleText": "内容列表"
+      }
+    },
+    {
+      "path": "pages/summary/index",
+      "style": {
+        "navigationBarTitleText": "AI 摘要"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "设置"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "AI订阅助手",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  },
+  "tabBar": {
+    "list": [
+      {
+        "text": "订阅源",
+        "iconPath": "static/tabs/subscription.png",
+        "selectedIconPath": "static/tabs/subscription-active.png",
+        "pagePath": "pages/subscriptions/index"
+      },
+      {
+        "text": "内容",
+        "iconPath": "static/tabs/content.png",
+        "selectedIconPath": "static/tabs/content-active.png",
+        "pagePath": "pages/content/index"
+      },
+      {
+        "text": "摘要",
+        "iconPath": "static/tabs/summary.png",
+        "selectedIconPath": "static/tabs/summary-active.png",
+        "pagePath": "pages/summary/index"
+      },
+      {
+        "text": "设置",
+        "iconPath": "static/tabs/settings.png",
+        "selectedIconPath": "static/tabs/settings-active.png",
+        "pagePath": "pages/settings/index"
+      }
+    ]
+  }
+}

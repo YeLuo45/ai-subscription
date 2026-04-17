@@ -1,0 +1,233 @@
+.settings-page {
+  min-height: 100vh;
+  background: #f0f2f5;
+}
+
+.settings-scroll {
+  height: 100vh;
+}
+
+.section {
+  background: #fff;
+  margin: 16px;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+
+  &-title {
+    display: block;
+    font-size: 30px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 8px;
+  }
+
+  &-desc {
+    display: block;
+    font-size: 24px;
+    color: #999;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+}
+
+// 模型卡片
+.model-card {
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+
+  &:last-child { margin-bottom: 0; }
+}
+
+.model-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.model-name {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333;
+}
+
+.model-status {
+  font-size: 22px;
+  color: #888;
+}
+
+.key-display-row, .key-edit-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.key-value {
+  font-size: 24px;
+  color: #bbb;
+  flex: 1;
+  font-family: monospace;
+}
+
+.key-input {
+  flex: 1;
+  border: 2px solid #6c63ff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 26px;
+}
+
+.key-edit-btn, .key-save-btn, .key-test-btn, .key-cancel-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 24px;
+  white-space: nowrap;
+}
+
+.key-edit-btn {
+  background: rgba(108,99,255,0.1);
+  color: #6c63ff;
+}
+
+.key-save-btn {
+  background: #6c63ff;
+  color: #fff;
+}
+
+.key-cancel-btn {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.key-test-btn {
+  background: #f0fff0;
+  color: #52c41a;
+
+  &.testing {
+    opacity: 0.6;
+  }
+}
+
+// 优先级
+.priority-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f5f5f5;
+
+  &:last-child { border-bottom: none; }
+}
+
+.priority-rank {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #6c63ff, #5a52e0);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.priority-name {
+  flex: 1;
+  font-size: 28px;
+  color: #333;
+}
+
+.priority-arrows {
+  display: flex;
+  gap: 8px;
+}
+
+.arrow-btn {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #e8e8e8;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #666;
+
+  &.disabled {
+    opacity: 0.3;
+  }
+}
+
+// 设置项
+.setting-item {
+  margin-bottom: 24px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.setting-label {
+  display: block;
+  font-size: 28px;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option-item {
+  padding: 16px 20px;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 26px;
+  color: #666;
+
+  &.active {
+    border-color: #6c63ff;
+    color: #6c63ff;
+    background: rgba(108,99,255,0.05);
+    font-weight: 600;
+  }
+}
+
+.time-input, .number-input {
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-size: 28px;
+  color: #333;
+}
+
+// 危险操作
+.danger-btn {
+  margin-top: 16px;
+  padding: 20px;
+  border-radius: 12px;
+  border: 2px solid #ff4d4f;
+  text-align: center;
+  font-size: 28px;
+  color: #ff4d4f;
+}
+
+// 版本信息
+.version-info {
+  padding: 32px;
+  text-align: center;
+  color: #ccc;
+  font-size: 22px;
+  line-height: 2;
+}

@@ -1,0 +1,596 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Layout,
+  Menu,
+  Typography,
+  Card,
+  List,
+  Button,
+  Switch,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Tag,
+  Space,
+  message,
+  Popconfirm,
+  Tooltip,
+  Empty,
+  Spin,
+} from 'antd';
+import {
+  SettingOutlined,
+  RobotOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  EyeOutlined,
+  GlobalOutlined,
+} from '@ant-design/icons';
+import type { MenuProps } from 'antd';
+import type { Subscription, Article, AIModel, AppSettings } from '../types';
+import { PRESET_SUBSCRIPTIONS, DEFAULT_MODELS } from '../types';
+import {
+  getSubscriptions,
+  saveSubscription,
+  updateSubscription,
+  deleteSubscription,
+  getArticles,
+  getModels,
+  getSettings,
+  saveSettings,
+  getPushHistory,
+} from '../services/storage';
+import { fetchFeed, fetchGitHubTrending } from '../services/feedParser';
+import { summarizeWithFallback } from '../services/aiAdapter';
+import { requestPermission } from '../services/notifications';
+import { startScheduler, fetchAllSubscriptions, runScheduledPush } from '../services/scheduler';
+
+const { Header, Sider, Content } = Layout;
+const { Title, Text } = Typography;
+
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history';
+
+export default function App() {
+  const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [pushHistory, setPushHistory] = useState<Awaited<ReturnType<typeof getPushHistory>>>([]);
+  const [loading, setLoading] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editSub, setEditSub] = useState<Subscription | null>(null);
+  const [addForm] = Form.useForm();
+  const [modelForm] = Form.useForm();
+  const [summarizing, setSummarizing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    const [subs, mods, sets, hist] = await Promise.all([
+      getSubscriptions(),
+      getModels(),
+      getSettings(),
+      getPushHistory(),
+    ]);
+    setSubscriptions(subs);
+    setModels(mods);
+    setSettings(sets);
+    setPushHistory(hist);
+    if (subs.length === 0) {
+      // Initialize with presets
+      for (const preset of PRESET_SUBSCRIPTIONS) {
+        await saveSubscription(preset as Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>);
+      }
+      const newSubs = await getSubscriptions();
+      setSubscriptions(newSubs);
+    }
+    if (mods.length === 0) {
+      for (const model of DEFAULT_MODELS) {
+        await saveModel(model as Omit<AIModel, 'id' | 'createdAt'>);
+      }
+      const newMods = await getModels();
+      setModels(newMods);
+    }
+    startScheduler(30);
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    requestPermission();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (activeMenu === 'articles') {
+      getArticles(undefined, 100).then(setArticles);
+    }
+  }, [activeMenu]);
+
+  const menuItems: MenuProps['items'] = [
+    { key: 'feeds', icon: <GlobalOutlined />, label: '订阅源' },
+    { key: 'articles', icon: <EyeOutlined />, label: '文章' },
+    { key: 'models', icon: <RobotOutlined />, label: 'AI模型' },
+    { key: 'settings', icon: <SettingOutlined />, label: '推送设置' },
+    { key: 'history', icon: <HistoryOutlined />, label: '推送历史' },
+  ];
+
+  async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
+    const { saveModel: sm } = await import('../services/storage');
+    return sm(model);
+  }
+
+  async function handleAddSubscription(values: Record<string, unknown>) {
+    try {
+      const sub = await saveSubscription({
+        name: values.name as string,
+        url: values.url as string,
+        type: values.type as 'rss' | 'atom' | 'api',
+        category: (values.category as string) || 'Custom',
+        enabled: true,
+        aiSummaryEnabled: true,
+        fetchIntervalMinutes: Number(values.fetchIntervalMinutes) || 60,
+      });
+      setSubscriptions((prev) => [...prev, sub]);
+      setAddModalOpen(false);
+      addForm.resetFields();
+      message.success(`已添加订阅源: ${sub.name}`);
+    } catch (err) {
+      message.error('添加失败');
+    }
+  }
+
+  async function handleEditSubscription(values: Record<string, unknown>) {
+    if (!editSub) return;
+    try {
+      const updated = await updateSubscription({
+        ...editSub,
+        name: values.name as string,
+        url: values.url as string,
+        type: values.type as 'rss' | 'atom' | 'api',
+        category: (values.category as string) || 'Custom',
+        fetchIntervalMinutes: Number(values.fetchIntervalMinutes) || 60,
+      });
+      setSubscriptions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setEditSub(null);
+      message.success('已更新订阅源');
+    } catch {
+      message.error('更新失败');
+    }
+  }
+
+  async function handleDeleteSubscription(id: string) {
+    await deleteSubscription(id);
+    setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+    message.success('已删除订阅源');
+  }
+
+  async function handleToggleEnabled(sub: Subscription) {
+    const updated = await updateSubscription({ ...sub, enabled: !sub.enabled });
+    setSubscriptions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  }
+
+  async function handleRefreshAll() {
+    setLoading(true);
+    try {
+      await fetchAllSubscriptions();
+      await getArticles(undefined, 100).then(setArticles);
+      message.success('抓取完成');
+    } catch {
+      message.error('抓取失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSummarizeArticle(article: Article) {
+    setSummarizing(true);
+    try {
+      const mods = await getModels();
+      const sets = await getSettings();
+      const result = await summarizeWithFallback(
+        { title: article.title, content: article.content || '', description: article.description },
+        mods,
+        sets.summaryLength
+      );
+      if (result.success) {
+        message.success(`摘要生成成功 (${result.tokensUsed} tokens)`);
+      } else {
+        message.error(result.error || '摘要生成失败');
+      }
+    } finally {
+      setSummarizing(false);
+    }
+  }
+
+  async function handleSaveSettings(values: Record<string, unknown>) {
+    if (!settings) return;
+    const updated: AppSettings = {
+      ...settings,
+      push: {
+        ...settings.push,
+        enabled: Boolean(values.pushEnabled),
+        time: values.pushTime as string,
+        frequency: values.pushFrequency as 'hourly' | 'daily' | 'weekly',
+        contentType: values.contentType as 'title_only' | 'title_summary' | 'title_full_summary',
+        channel: values.pushChannel as 'notification' | 'email' | 'both',
+        quietHoursEnabled: Boolean(values.quietHoursEnabled),
+        quietHoursStart: values.quietHoursStart as string,
+        quietHoursEnd: values.quietHoursEnd as string,
+        maxDailyPush: Number(values.maxDailyPush) || 20,
+      },
+      email: {
+        ...settings.email,
+        enabled: Boolean(values.emailEnabled),
+        smtpHost: values.smtpHost as string,
+        smtpPort: Number(values.smtpPort) || 587,
+        smtpUser: values.smtpUser as string,
+        smtpPassword: values.smtpPassword as string,
+        fromEmail: values.fromEmail as string,
+        fromName: values.fromName as string,
+      },
+      summaryLength: values.summaryLength as 'short' | 'medium' | 'long',
+    };
+    await saveSettings(updated);
+    setSettings(updated);
+    message.success('设置已保存');
+  }
+
+  async function handleManualPush() {
+    setLoading(true);
+    try {
+      await runScheduledPush();
+      message.success('推送已触发');
+    } catch {
+      message.error('推送失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleTestNotification() {
+    const perm = await requestPermission();
+    if (perm !== 'granted') {
+      message.warning('请允许通知权限');
+      return;
+    }
+    new Notification('AI订阅助手', { body: '通知测试成功！' });
+    message.success('通知已发送');
+  }
+
+  async function handleTestFeed(values: Record<string, unknown>) {
+    setLoading(true);
+    try {
+      const url = values.url as string;
+      if (url.includes('github.com/trending')) {
+        const arts = await fetchGitHubTrending();
+        message.success(`获取到 ${arts.length} 条 GitHub Trending 内容`);
+      } else {
+        const arts = await fetchFeed(url);
+        message.success(`获取到 ${arts.length} 条内容`);
+      }
+    } catch (err) {
+      message.error('抓取失败，请检查URL是否可访问');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const renderFeeds = () => (
+    <div>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+        <Button icon={<PlusOutlined />} type="primary" onClick={() => setAddModalOpen(true)}>添加订阅源</Button>
+        <Button icon={<ReloadOutlined />} onClick={handleRefreshAll} loading={loading}>刷新全部</Button>
+      </div>
+      <List
+        dataSource={subscriptions}
+        renderItem={(sub) => (
+          <List.Item
+            actions={[
+              <Switch key="toggle" checked={sub.enabled} onChange={() => handleToggleEnabled(sub)} size="small" />,
+              <Tooltip key="edit" title="编辑"><Button icon={<EditOutlined />} size="small" onClick={() => { setEditSub(sub); modelForm.setFieldsValue(sub); }} /></Tooltip>,
+              <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id)}>
+                <Button icon={<DeleteOutlined />} size="small" danger />
+              </Popconfirm>,
+            ]}
+          >
+            <List.Item.Meta
+              title={<Space><Text strong={sub.enabled}>{sub.name}</Text><Tag>{sub.category}</Tag><Tag color="blue">{sub.type.toUpperCase()}</Tag></Space>}
+              description={<Text type="secondary" style={{ fontSize: 12 }}>{sub.url}</Text>}
+            />
+          </List.Item>
+        )}
+        locale={{ emptyText: <Empty description="暂无订阅源" /> }}
+      />
+
+      <Modal title="添加订阅源" open={addModalOpen} onCancel={() => { setAddModalOpen(false); addForm.resetFields(); }} footer={null}>
+        <Form form={addForm} layout="vertical" onFinish={handleAddSubscription}>
+          <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+            <Input placeholder="例如：科技资讯" />
+          </Form.Item>
+          <Form.Item name="url" label="URL" rules={[{ required: true, type: 'url' }]}>
+            <Input placeholder="https://example.com/feed.xml" />
+          </Form.Item>
+          <Form.Item name="type" label="类型" initialValue="rss">
+            <Select options={[{ value: 'rss', label: 'RSS' }, { value: 'atom', label: 'Atom' }, { value: 'api', label: 'API' }]} />
+          </Form.Item>
+          <Form.Item name="category" label="分类" initialValue="Custom">
+            <Input placeholder="例如：科技、AI、开发" />
+          </Form.Item>
+          <Form.Item name="fetchIntervalMinutes" label="抓取间隔(分钟)" initialValue={60}>
+            <Input type="number" min={5} />
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={loading}>保存</Button>
+              <Button onClick={() => {
+                const vals = addForm.getFieldsValue();
+                if (vals.url) handleTestFeed(vals);
+              }}>测试抓取</Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="编辑订阅源" open={!!editSub} onCancel={() => { setEditSub(null); }} footer={null}>
+        <Form form={modelForm} layout="vertical" onFinish={handleEditSubscription}>
+          <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="url" label="URL" rules={[{ required: true, type: 'url' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="type" label="类型">
+            <Select options={[{ value: 'rss', label: 'RSS' }, { value: 'atom', label: 'Atom' }, { value: 'api', label: 'API' }]} />
+          </Form.Item>
+          <Form.Item name="category" label="分类">
+            <Input />
+          </Form.Item>
+          <Form.Item name="fetchIntervalMinutes" label="抓取间隔(分钟)">
+            <Input type="number" min={5} />
+          </Form.Item>
+          <Form.Item><Button type="primary" htmlType="submit">保存</Button></Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+
+  const renderArticles = () => (
+    <div>
+      <List
+        dataSource={articles}
+        locale={{ emptyText: <Empty description="暂无文章，请先刷新订阅源" /> }}
+        renderItem={(article) => (
+          <List.Item
+            actions={[
+              <Button key="summarize" icon={<RobotOutlined />} size="small" loading={summarizing} onClick={() => handleSummarizeArticle(article)}>AI摘要</Button>,
+              <Button key="open" icon={<EyeOutlined />} size="small" onClick={() => window.open(article.link, '_blank')} />,
+            ]}
+          >
+            <List.Item.Meta
+              title={<a href={article.link} target="_blank" rel="noopener noreferrer">{article.title}</a>}
+              description={<Space direction="vertical" size={0}><Text type="secondary" style={{ fontSize: 12 }}>{article.description?.slice(0, 150)}</Text><Text type="secondary" style={{ fontSize: 11 }}>{new Date(article.pubDate).toLocaleString('zh-CN')}</Text></Space>}
+            />
+          </List.Item>
+        )}
+      />
+    </div>
+  );
+
+  const renderModels = () => {
+    const [addModelOpen, setAddModelOpen] = useState(false);
+
+    async function handleSaveModel(values: Record<string, unknown>) {
+      const model = await saveModel({
+        name: values.name as string,
+        provider: values.provider as AIModel['provider'],
+        apiBaseUrl: values.apiBaseUrl as string,
+        apiKey: values.apiKey as string,
+        modelName: values.modelName as string,
+        temperature: Number(values.temperature) || 0.3,
+        maxTokens: Number(values.maxTokens) || 1000,
+        isDefault: models.length === 0,
+      });
+      setModels((prev) => [...prev, model]);
+      setAddModelOpen(false);
+      modelForm.resetFields();
+      message.success('模型已添加');
+    }
+
+    return (
+      <div>
+        <Button icon={<PlusOutlined />} type="primary" onClick={() => setAddModelOpen(true)} style={{ marginBottom: 16 }}>添加模型</Button>
+        <List
+          dataSource={models}
+          renderItem={(model) => (
+            <List.Item>
+              <List.Item.Meta
+                title={<Space><Text strong>{model.name}</Text>{model.isDefault && <Tag color="green">默认</Tag>}<Tag>{model.provider}</Tag></Space>}
+                description={<Space direction="vertical" size={0}><Text type="secondary" style={{ fontSize: 12 }}>模型: {model.modelName}</Text><Text type="secondary" style={{ fontSize: 12 }}>API: {model.apiBaseUrl}</Text><Text type="secondary" style={{ fontSize: 12 }}>Key: {model.apiKey ? '****' + model.apiKey.slice(-4) : '未配置'}</Text></Space>}
+              />
+            </List.Item>
+          )}
+        />
+
+        <Modal title="添加AI模型" open={addModelOpen} onCancel={() => { setAddModelOpen(false); modelForm.resetFields(); }} footer={null}>
+          <Form form={modelForm} layout="vertical" onFinish={handleSaveModel}>
+            <Form.Item name="name" label="显示名称" rules={[{ required: true }]} initialValue="">
+              <Input placeholder="例如：智谱 GLM-4" />
+            </Form.Item>
+            <Form.Item name="provider" label="提供商" rules={[{ required: true }]}>
+              <Select options={[
+                { value: 'minimax', label: 'MiniMax' },
+                { value: 'xiaomi', label: '小米' },
+                { value: 'zhipu', label: '智谱' },
+                { value: 'claude', label: 'Claude' },
+                { value: 'gemini', label: 'Gemini' },
+                { value: 'openai', label: 'OpenAI兼容' },
+              ]} />
+            </Form.Item>
+            <Form.Item name="apiBaseUrl" label="API Base URL" rules={[{ required: true }]}>
+              <Input placeholder="https://api.example.com/v1" />
+            </Form.Item>
+            <Form.Item name="apiKey" label="API Key" rules={[{ required: true }]}>
+              <Input.Password placeholder="sk-xxxxx" />
+            </Form.Item>
+            <Form.Item name="modelName" label="模型名称" rules={[{ required: true }]}>
+              <Input placeholder="glm-4" />
+            </Form.Item>
+            <Form.Item name="temperature" label="Temperature" initialValue={0.3}>
+              <Input type="number" min={0} max={1} step={0.1} />
+            </Form.Item>
+            <Form.Item name="maxTokens" label="最大Token数" initialValue={1000}>
+              <Input type="number" min={100} />
+            </Form.Item>
+            <Form.Item><Button type="primary" htmlType="submit">保存并测试</Button></Form.Item>
+          </Form>
+        </Modal>
+      </div>
+    );
+  };
+
+  const renderSettings = () => {
+    if (!settings) return <Spin />;
+    return (
+      <Form
+        layout="vertical"
+        initialValues={{
+          pushEnabled: settings.push.enabled,
+          pushTime: settings.push.time,
+          pushFrequency: settings.push.frequency,
+          contentType: settings.push.contentType,
+          pushChannel: settings.push.channel,
+          quietHoursEnabled: settings.push.quietHoursEnabled,
+          quietHoursStart: settings.push.quietHoursStart,
+          quietHoursEnd: settings.push.quietHoursEnd,
+          maxDailyPush: settings.push.maxDailyPush,
+          emailEnabled: settings.email.enabled,
+          smtpHost: settings.email.smtpHost,
+          smtpPort: settings.email.smtpPort,
+          smtpUser: settings.email.smtpUser,
+          smtpPassword: settings.email.smtpPassword,
+          fromEmail: settings.email.fromEmail,
+          fromName: settings.email.fromName,
+          summaryLength: settings.summaryLength,
+        }}
+        onFinish={handleSaveSettings}
+      >
+        <Card title="推送设置" size="small">
+          <Form.Item name="pushEnabled" valuePropName="checked" label="启用推送">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="pushTime" label="每日推送时间">
+            <Input type="time" />
+          </Form.Item>
+          <Form.Item name="pushFrequency" label="推送频率">
+            <Select options={[
+              { value: 'hourly', label: '每小时' },
+              { value: 'daily', label: '每日' },
+              { value: 'weekly', label: '每周' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="contentType" label="推送内容">
+            <Select options={[
+              { value: 'title_only', label: '仅标题' },
+              { value: 'title_summary', label: '标题+摘要' },
+              { value: 'title_full_summary', label: '标题+完整摘要' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="pushChannel" label="推送渠道">
+            <Select options={[
+              { value: 'notification', label: '通知栏' },
+              { value: 'email', label: '邮件' },
+              { value: 'both', label: '两者都有' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="quietHoursEnabled" valuePropName="checked" label="免打扰时段">
+            <Switch />
+          </Form.Item>
+          <Space>
+            <Form.Item name="quietHoursStart"><Input type="time" placeholder="开始时间" /></Form.Item>
+            <Form.Item name="quietHoursEnd"><Input type="time" placeholder="结束时间" /></Form.Item>
+          </Space>
+          <Form.Item name="maxDailyPush" label="每日最大推送条数">
+            <Input type="number" min={1} max={100} />
+          </Form.Item>
+          <Space>
+            <Button type="primary" htmlType="submit">保存设置</Button>
+            <Button onClick={handleManualPush} loading={loading}>立即推送</Button>
+            <Button onClick={handleTestNotification}>测试通知</Button>
+          </Space>
+        </Card>
+
+        <Card title="邮件设置" size="small" style={{ marginTop: 16 }}>
+          <Form.Item name="emailEnabled" valuePropName="checked" label="启用邮件推送">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="smtpHost" label="SMTP服务器">
+            <Input placeholder="smtp.gmail.com" />
+          </Form.Item>
+          <Form.Item name="smtpPort" label="SMTP端口">
+            <Input type="number" defaultValue={587} />
+          </Form.Item>
+          <Form.Item name="smtpUser" label="用户名">
+            <Input />
+          </Form.Item>
+          <Form.Item name="smtpPassword" label="密码/授权码">
+            <Input.Password />
+          </Form.Item>
+          <Form.Item name="fromEmail" label="发件人邮箱">
+            <Input type="email" />
+          </Form.Item>
+          <Form.Item name="fromName" label="发件人名称">
+            <Input />
+          </Form.Item>
+        </Card>
+
+        <Card title="摘要设置" size="small" style={{ marginTop: 16 }}>
+          <Form.Item name="summaryLength" label="摘要长度">
+            <Select options={[
+              { value: 'short', label: '短（100字）' },
+              { value: 'medium', label: '中（300字）' },
+              { value: 'long', label: '长（500字）' },
+            ]} />
+          </Form.Item>
+          <Button type="primary" htmlType="submit">保存</Button>
+        </Card>
+      </Form>
+    );
+  };
+
+  const renderHistory = () => (
+    <List
+      dataSource={pushHistory}
+      locale={{ emptyText: <Empty description="暂无推送记录" /> }}
+      renderItem={(item) => (
+        <List.Item>
+          <List.Item.Meta
+            title={<Space><Text strong>{item.title}</Text><Tag color={item.status === 'success' ? 'green' : 'red'}>{item.status}</Tag></Space>}
+            description={<Text type="secondary" style={{ fontSize: 12 }}>{new Date(item.pushedAt).toLocaleString('zh-CN')}</Text>}
+          />
+        </List.Item>
+      )}
+    />
+  );
+
+  return (
+    <Layout style={{ minHeight: '100vh' }}>
+      <Header style={{ background: '#001529', padding: '0 24px', display: 'flex', alignItems: 'center' }}>
+        <Title level={4} style={{ color: 'white', margin: 0 }}>🤖 AI订阅聚合</Title>
+      </Header>
+      <Layout>
+        <Sider width={200} style={{ background: '#fff' }}>
+          <Menu mode="inline" selectedKeys={[activeMenu]} items={menuItems} onClick={({ key }) => setActiveMenu(key as MenuKey)} style={{ height: '100%' }} />
+        </Sider>
+        <Content style={{ padding: 24, minHeight: 280, overflow: 'auto' }}>
+          {activeMenu === 'feeds' && renderFeeds()}
+          {activeMenu === 'articles' && renderArticles()}
+          {activeMenu === 'models' && renderModels()}
+          {activeMenu === 'settings' && renderSettings()}
+          {activeMenu === 'history' && renderHistory()}
+        </Content>
+      </Layout>
+    </Layout>
+  );
+}
