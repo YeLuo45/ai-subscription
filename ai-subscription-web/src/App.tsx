@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Layout, Menu, Typography, message } from 'antd';
+import { Layout, Menu, Typography, message, Drawer, Timeline, Tag, Badge, Empty, Tooltip, Button, Space } from 'antd';
+import { ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, BugOutlined, ClearOutlined } from '@ant-design/icons';
+import Text from 'antd/es/typography/Text';
 import {
   DatabaseOutlined,
   UnorderedListOutlined,
@@ -11,6 +13,8 @@ import {
   Subscription,
   ContentItem,
   AppSettings,
+  FetchLogEntry,
+  MAX_FETCH_LOGS,
 } from './types';
 import {
   loadSettings,
@@ -36,7 +40,35 @@ function App() {
   const [contents, setContents] = useState<Record<string, ContentItem[]>>({});
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [fetchLogs, setFetchLogs] = useState<FetchLogEntry[]>([]);
+  const [logDrawerOpen, setLogDrawerOpen] = useState(false);
+  // 每订阅源最新抓取状态（用于表格行内Badge显示）
+  const [fetchStatus, setFetchStatus] = useState<Record<string, {
+    status: 'idle' | 'pending' | 'success' | 'fail';
+    itemCount?: number;
+    error?: string;
+    duration?: number;
+  }>>({});
   const schedulerRef = useRef(false);
+
+  // 生成抓取日志ID
+  const makeLogId = () => `log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  // 添加抓取日志
+  const addFetchLog = useCallback((entry: Omit<FetchLogEntry, 'id' | 'timestamp'>) => {
+    const newEntry: FetchLogEntry = {
+      ...entry,
+      id: makeLogId(),
+      timestamp: new Date().toISOString(),
+    };
+    setFetchLogs(prev => [newEntry, ...prev].slice(0, MAX_FETCH_LOGS));
+    return newEntry;
+  }, []);
+
+  // 清除日志
+  const clearFetchLogs = useCallback(() => {
+    setFetchLogs([]);
+  }, []);
 
   // 初始化
   useEffect(() => {
@@ -152,8 +184,21 @@ function App() {
     message.success(enabled ? '订阅源已启用' : '订阅源已禁用');
   }, [settings, updateSettings]);
 
-  // 抓取单个订阅源
+  // 抓取单个订阅源（带日志）
   const fetchSubscription = useCallback(async (sub: Subscription) => {
+    const startTime = Date.now();
+    // 设置 pending 状态
+    setFetchStatus(prev => ({ ...prev, [sub.id]: { status: 'pending' } }));
+
+    const logId = makeLogId();
+    addFetchLog({
+      subscriptionId: sub.id,
+      subscriptionName: sub.name,
+      url: sub.url,
+      level: 'pending',
+      message: `开始抓取...`,
+    });
+
     try {
       const result = await fetchFeed(sub.url, sub.type);
       const items: ContentItem[] = result.items.map(item => ({
@@ -161,6 +206,7 @@ function App() {
         subscriptionId: sub.id,
         isRead: false,
       }));
+      const duration = Date.now() - startTime;
 
       setContents(prev => {
         const existing = prev[sub.id] || [];
@@ -177,15 +223,40 @@ function App() {
         return { ...prev, [sub.id]: updated };
       });
 
+      // 成功日志
+      setFetchStatus(prev => ({ ...prev, [sub.id]: { status: 'success', itemCount: items.length, duration } }));
+      addFetchLog({
+        subscriptionId: sub.id,
+        subscriptionName: sub.name,
+        url: sub.url,
+        level: 'success',
+        message: `抓取成功：${items.length} 条新内容`,
+        duration,
+        itemCount: items.length,
+      });
+
       if (items.length > 0) {
         message.success(`抓取成功：${items.length} 条新内容`);
       } else {
         message.info('暂无新内容');
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      const duration = Date.now() - startTime;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      // 失败日志
+      setFetchStatus(prev => ({ ...prev, [sub.id]: { status: 'fail', error: errorMsg, duration } }));
+      addFetchLog({
+        subscriptionId: sub.id,
+        subscriptionName: sub.name,
+        url: sub.url,
+        level: 'fail',
+        message: `抓取失败：${errorMsg}`,
+        duration,
+        error: errorMsg,
+      });
       message.error(`抓取失败：${sub.name}`);
     }
-  }, [settings.pushSettings.enabled]);
+  }, [settings.pushSettings.enabled, addFetchLog]);
 
   // 抓取所有订阅源
   const fetchAllSubscriptions = useCallback(async () => {
@@ -234,6 +305,7 @@ function App() {
         return (
           <SubscriptionsPage
             subscriptions={settings.subscriptions}
+            fetchStatus={fetchStatus}
             onAdd={addSubscription}
             onDelete={deleteSubscription}
             onToggle={toggleSubscription}
@@ -273,10 +345,21 @@ function App() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ background: '#001529', padding: '0 24px', display: 'flex', alignItems: 'center' }}>
+      <Header style={{ background: '#001529', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Title level={4} style={{ color: 'white', margin: 0 }}>
           🤖 AI 订阅助手
         </Title>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button
+            type="text"
+            icon={<BugOutlined />}
+            style={{ color: 'white' }}
+            onClick={() => setLogDrawerOpen(true)}
+            title="抓取日志"
+          >
+            {fetchLogs.length > 0 && <Badge count={fetchLogs.length} size="small" />}
+          </Button>
+        </div>
       </Header>
       <Layout>
         <Sider width={200} style={{ background: '#fff' }}>
@@ -307,6 +390,67 @@ function App() {
           </Content>
         </Layout>
       </Layout>
+
+      {/* 抓取日志抽屉 */}
+      <Drawer
+        title={
+          <Space>
+            <BugOutlined />
+            <span>抓取日志</span>
+            {fetchLogs.length > 0 && <Tag>{fetchLogs.length}</Tag>}
+          </Space>
+        }
+        placement="right"
+        width={480}
+        open={logDrawerOpen}
+        onClose={() => setLogDrawerOpen(false)}
+        extra={
+          <Button icon={<ClearOutlined />} size="small" onClick={clearFetchLogs} disabled={fetchLogs.length === 0}>
+            清除
+          </Button>
+        }
+      >
+        {fetchLogs.length === 0 ? (
+          <Empty description="暂无抓取日志" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <Timeline
+            items={fetchLogs.map(log => {
+              let color = 'gray';
+              let icon = <ClockCircleOutlined />;
+              if (log.level === 'success') { color = 'green'; icon = <CheckCircleOutlined />; }
+              else if (log.level === 'fail') { color = 'red'; icon = <CloseCircleOutlined />; }
+              return {
+                color,
+                dot: icon,
+                children: (
+                  <div style={{ paddingBottom: 8 }}>
+                    <Space>
+                      <Text strong style={{ fontSize: 13 }}>{log.subscriptionName}</Text>
+                      {log.duration !== undefined && (
+                        <Tag style={{ fontSize: 11 }}>{log.duration}ms</Tag>
+                      )}
+                      {log.itemCount !== undefined && (
+                        <Tag color="green" style={{ fontSize: 11 }}>+{log.itemCount}</Tag>
+                      )}
+                    </Space>
+                    <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                      <div>{log.message}</div>
+                      {log.url && (
+                        <div style={{ fontSize: 11, color: '#999', wordBreak: 'break-all' }}>
+                          URL: {log.url}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: '#bbb', marginTop: 2 }}>
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              };
+            })}
+          />
+        )}
+      </Drawer>
     </Layout>
   );
 }

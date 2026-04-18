@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, Select, Space, Tag,
   Popconfirm, Card, Row, Col, message, Typography, Badge,
+  Tooltip,
 } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Subscription, PRESET_SUBSCRIPTIONS } from '../types';
@@ -13,6 +14,12 @@ const { Title } = Typography;
 
 interface SubscriptionsPageProps {
   subscriptions: Subscription[];
+  fetchStatus: Record<string, {
+    status: 'idle' | 'pending' | 'success' | 'fail';
+    itemCount?: number;
+    error?: string;
+    duration?: number;
+  }>;
   onAdd: (sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onDelete: (id: string) => void;
   onToggle: (id: string, enabled: boolean) => void;
@@ -23,6 +30,7 @@ interface SubscriptionsPageProps {
 
 export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({
   subscriptions,
+  fetchStatus,
   onAdd,
   onDelete,
   onToggle,
@@ -66,6 +74,29 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({
     });
   };
 
+  const getStatusBadge = (sub: Subscription) => {
+    const s = fetchStatus[sub.id];
+    if (!s || s.status === 'idle') return null;
+    switch (s.status) {
+      case 'pending':
+        return <Badge status="processing" text={<span style={{ fontSize: 12 }}>抓取中...</span>} />;
+      case 'success':
+        return (
+          <Tag color="green" style={{ fontSize: 11 }}>
+            ✓ {s.itemCount}条 / {s.duration}ms
+          </Tag>
+        );
+      case 'fail':
+        return (
+          <Tooltip title={s.error}>
+            <Tag color="red" style={{ fontSize: 11, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              ✗ 失败
+            </Tag>
+          </Tooltip>
+        );
+    }
+  };
+
   const columns = [
     {
       title: '名称',
@@ -75,6 +106,7 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({
         <Space>
           {name}
           {!record.enabled && <Tag color="default">已禁用</Tag>}
+          {getStatusBadge(record)}
         </Space>
       ),
     },

@@ -95,6 +95,26 @@ export interface SummarizeResult {
 }
 
 // ============================================================
+// 抓取日志（调试用）
+// ============================================================
+export type FetchLogLevel = 'success' | 'fail' | 'pending';
+
+export interface FetchLogEntry {
+  id: string;
+  subscriptionId: string;
+  subscriptionName: string;
+  url: string;
+  level: FetchLogLevel;
+  message: string;
+  duration?: number; // ms
+  itemCount?: number;
+  error?: string;
+  timestamp: string;
+}
+
+export const MAX_FETCH_LOGS = 100;
+
+// ============================================================
 // 预设订阅源（15个RSS订阅源）
 // ============================================================
 export const PRESET_SUBSCRIPTIONS: Array<{
