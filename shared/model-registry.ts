@@ -54,7 +54,7 @@ export const PROVIDER_BASE_URLS: Record<string, string> = {
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com/v1',
   minimax: 'https://api.minimax.chat/v1',
-  'minimax-cn': 'https://api.minimaxi.com/anthropic',
+  'minimax-cn': 'https://api.minimax.chat/v1',
   xiaomi: 'https://api.xiaomimimo.com/v1',
   zhipu: 'https://open.bigmodel.cn/api/paas/v4',
   qwen: 'https://dashscope.aliyuncs.com/api/v1',
