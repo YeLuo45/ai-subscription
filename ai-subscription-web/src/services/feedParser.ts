@@ -1,7 +1,29 @@
 /**
  * Feed Parser Service - Web 端 RSS/Atom/JSON API 内容抓取
+ * 支持 CORS 代理绕过跨域限制
  */
 import { ParsedItem, FetchResult, SubscriptionType } from '../types';
+
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+/**
+ * 判断是否需要使用 CORS 代理
+ */
+function needsProxy(url: string): boolean {
+  try {
+    const origin = new URL(url).origin;
+    return origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 获取代理后的 URL
+ */
+function withProxy(url: string): string {
+  return `${CORS_PROXY}${encodeURIComponent(url)}`;
+}
 
 /**
  * 解析 XML 文档（RSS / Atom）
@@ -56,7 +78,8 @@ function getFeedTitle(doc: Document, type: 'rss' | 'atom'): string {
  * 抓取 RSS / Atom 源
  */
 async function fetchRSSOrAtom(url: string, type: 'rss' | 'atom'): Promise<FetchResult> {
-  const response = await fetch(url, {
+  const fetchUrl = needsProxy(url) ? withProxy(url) : url;
+  const response = await fetch(fetchUrl, {
     headers: {
       'Accept': type === 'rss' ? 'application/rss+xml, application/xml, text/xml' : 'application/atom+xml, application/xml, text/xml',
       'User-Agent': 'AI Subscription Web/1.0',
@@ -80,7 +103,8 @@ async function fetchRSSOrAtom(url: string, type: 'rss' | 'atom'): Promise<FetchR
  * 抓取 JSON API
  */
 async function fetchJSONApi(url: string): Promise<FetchResult> {
-  const response = await fetch(url, {
+  const fetchUrl = needsProxy(url) ? withProxy(url) : url;
+  const response = await fetch(fetchUrl, {
     headers: {
       'Accept': 'application/json',
       'User-Agent': 'AI Subscription Web/1.0',
@@ -146,7 +170,7 @@ export async function fetchFeed(
 
   // 自动检测
   try {
-    const response = await fetch(url, {
+    const response = await fetch(needsProxy(url) ? withProxy(url) : url, {
       method: 'HEAD',
       headers: { 'User-Agent': 'AI Subscription Web/1.0' },
     });

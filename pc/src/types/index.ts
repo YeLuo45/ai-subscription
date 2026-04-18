@@ -88,8 +88,8 @@ export const PRESET_SUBSCRIPTIONS: Omit<Subscription, 'id' | 'createdAt' | 'upda
 ];
 
 export const DEFAULT_MODELS: Omit<AIModel, 'id' | 'createdAt'>[] = [
-  { name: 'MiniMax M2', provider: 'minimax', apiBaseUrl: 'https://api.minimax.chat/v', apiKey: '', modelName: 'MiniMax-M2.7', temperature: 0.3, maxTokens: 1000, isDefault: true },
-  { name: '小米', provider: 'xiaomi', apiBaseUrl: 'https://account.platform.minimax.io', apiKey: '', modelName: 'MiLM', temperature: 0.3, maxTokens: 1000, isDefault: false },
+  { name: 'MiniMax M2', provider: 'minimax', apiBaseUrl: 'https://api.minimax.chat/v1', apiKey: '', modelName: 'MiniMax-M2.7', temperature: 0.3, maxTokens: 1000, isDefault: true },
+  { name: '小米', provider: 'xiaomi', apiBaseUrl: 'https://api.xiaomimimo.com/v1', apiKey: '', modelName: 'MiLM', temperature: 0.3, maxTokens: 1000, isDefault: false },
   { name: '智谱 GLM-4', provider: 'zhipu', apiBaseUrl: 'https://open.bigmodel.cn/api/paas/v4', apiKey: '', modelName: 'glm-4', temperature: 0.3, maxTokens: 1000, isDefault: false },
   { name: 'Claude 3.5', provider: 'claude', apiBaseUrl: 'https://api.anthropic.com/v1', apiKey: '', modelName: 'claude-3-5-sonnet-20241022', temperature: 0.3, maxTokens: 1000, isDefault: false },
   { name: 'Gemini 2.0', provider: 'gemini', apiBaseUrl: 'https://generativelanguage.googleapis.com/v1beta', apiKey: '', modelName: 'gemini-2.0-flash', temperature: 0.3, maxTokens: 1000, isDefault: false },

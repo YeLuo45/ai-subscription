@@ -1,22 +1,13 @@
 /**
  * AI Model Adapter - 统一 AI 摘要生成适配器
- * 支持多模型优先级切换：miniMax → 小米 → 智谱 → Claude → Gemini
+ * 支持多模型优先级切换：MiniMax → 小米 → 智谱 → Claude → Gemini
  * 
  * 该文件为核心共享逻辑，需复制到各端项目中。
  * 各端调用统一入口：AISummarizer.summarize(text, options)
  */
 
-export interface ModelConfig {
-  id: string;
-  name: string;
-  provider: 'minimax' | 'xiaomi' | 'zhipu' | 'claude' | 'gemini';
-  apiBaseUrl: string;
-  apiKey: string;
-  modelName: string;
-  temperature: number;
-  maxTokens: number;
-  isDefault: boolean;
-}
+import type { ModelConfig, CallOptions, CallResult } from './model-registry';
+import { ModelRegistry } from './model-registry';
 
 export interface SummarizeOptions {
   modelPriority?: string[]; // 优先级顺序，默认 ['minimax', 'xiaomi', 'zhipu', 'claude', 'gemini']
@@ -33,24 +24,26 @@ export interface SummarizeResult {
 }
 
 // 默认模型配置模板
-export const DEFAULT_MODEL_CONFIGS: Omit<ModelConfig, 'id' | 'isDefault'>[] = [
+export const DEFAULT_MODEL_CONFIGS: Omit<ModelConfig, 'id' | 'isEnabled'>[] = [
   {
     name: 'MiniMax M2.7',
     provider: 'minimax',
-    apiBaseUrl: 'https://api.minimax.chat/v',
+    apiBaseUrl: 'https://api.minimax.chat/v1', // Fixed: was 'https://api.minimax.chat/v' (missing '1')
     apiKey: '',
-    modelName: 'MiniMax-M2.7',
+    modelName: 'MiniMax-Text-01',
     temperature: 0.3,
     maxTokens: 1000,
+    priority: 0,
   },
   {
     name: '小米 MiLM',
     provider: 'xiaomi',
-    apiBaseUrl: 'https://account.platform.minimax.io/...',
+    apiBaseUrl: 'https://api.xiaomimimo.com/v1',
     apiKey: '',
     modelName: 'MiLM',
     temperature: 0.3,
     maxTokens: 1000,
+    priority: 1,
   },
   {
     name: '智谱 GLM-4',
@@ -60,15 +53,17 @@ export const DEFAULT_MODEL_CONFIGS: Omit<ModelConfig, 'id' | 'isDefault'>[] = [
     modelName: 'glm-4',
     temperature: 0.3,
     maxTokens: 1000,
+    priority: 2,
   },
   {
     name: 'Claude',
-    provider: 'claude',
+    provider: 'anthropic',
     apiBaseUrl: 'https://api.anthropic.com/v1',
     apiKey: '',
     modelName: 'claude-3-5-sonnet-20241022',
     temperature: 0.3,
     maxTokens: 1000,
+    priority: 3,
   },
   {
     name: 'Gemini',
@@ -78,11 +73,12 @@ export const DEFAULT_MODEL_CONFIGS: Omit<ModelConfig, 'id' | 'isDefault'>[] = [
     modelName: 'gemini-2.0-flash',
     temperature: 0.3,
     maxTokens: 1000,
+    priority: 4,
   },
 ];
 
 // 默认优先级
-const DEFAULT_PRIORITY = ['minimax', 'xiaomi', 'zhipu', 'claude', 'gemini'];
+const DEFAULT_PRIORITY = ['minimax', 'xiaomi', 'zhipu', 'anthropic', 'gemini'];
 
 // 摘要长度映射
 const SUMMARY_LENGTH_MAP = {
@@ -102,67 +98,6 @@ function buildPrompt(text: string, length: 'short' | 'medium' | 'long'): string 
 
 内容：
 ${text.slice(0, 3000)}`;
-}
-
-/**
- * 调用 OpenAI 兼容接口
- */
-async function callOpenAICompatible(
-  config: ModelConfig,
-  prompt: string,
-  sessionId?: string
-): Promise<string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${config.apiKey}`,
-  };
-
-  // 部分提供商需要特殊 Header
-  if (config.provider === 'claude') {
-    headers['x-api-key'] = config.apiKey;
-    headers['anthropic-version'] = '2023-06-01';
-    delete headers['Authorization'];
-  }
-
-  if (sessionId && config.provider === 'minimax') {
-    headers['session_id'] = sessionId;
-  }
-
-  const body: Record<string, unknown> = {
-    model: config.modelName,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: config.temperature,
-    max_tokens: config.maxTokens,
-  };
-
-  // Claude 需要不同的消息格式
-  if (config.provider === 'claude') {
-    body.messages = [
-      { role: 'user', content: prompt }
-    ];
-  }
-
-  const response = await fetch(`${config.apiBaseUrl}/chat/completions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API调用失败 (${response.status}): ${errorText}`);
-  }
-
-  const data = await response.json();
-  
-  // 兼容不同格式
-  if (data.choices?.[0]?.message?.content) {
-    return data.choices[0].message.content;
-  }
-  if (data.content?.[0]?.text) {
-    return data.content[0].text;
-  }
-  throw new Error('未知响应格式');
 }
 
 /**
@@ -188,12 +123,28 @@ function parseAIResponse(content: string): { summary: string; keywords: string[]
   };
 }
 
+// ============================================================
+// Model Registry Singleton
+// ============================================================
+
+let registry: ModelRegistry | null = null;
+
+function getRegistry(models?: ModelConfig[]): ModelRegistry {
+  if (!registry) {
+    registry = ModelRegistry.fromJSON(models || []);
+  }
+  return registry;
+}
+
+function initRegistry(models: ModelConfig[]): void {
+  registry = ModelRegistry.fromJSON(models);
+}
+
 /**
  * AI 摘要生成器主类
  */
 export class AISummarizer {
   private models: ModelConfig[] = [];
-  private defaultPriority: string[] = DEFAULT_PRIORITY;
 
   constructor(models: ModelConfig[] = []) {
     this.models = models;
@@ -204,6 +155,7 @@ export class AISummarizer {
    */
   setModels(models: ModelConfig[]): void {
     this.models = models;
+    initRegistry(models);
   }
 
   /**
@@ -216,6 +168,7 @@ export class AISummarizer {
     } else {
       this.models.push(config);
     }
+    initRegistry(this.models);
   }
 
   /**
@@ -224,9 +177,8 @@ export class AISummarizer {
   removeModel(modelId: string): boolean {
     const index = this.models.findIndex(m => m.id === modelId);
     if (index < 0) return false;
-    const model = this.models[index];
-    if (model.isDefault) return false; // 默认模型不可删除
     this.models.splice(index, 1);
+    initRegistry(this.models);
     return true;
   }
 
@@ -245,28 +197,6 @@ export class AISummarizer {
   }
 
   /**
-   * 按优先级顺序获取模型
-   */
-  private getModelsByPriority(priority: string[]): ModelConfig[] {
-    const available = this.getAvailableModels();
-    const sorted: ModelConfig[] = [];
-    
-    for (const p of priority) {
-      const found = available.find(m => m.provider === p);
-      if (found) sorted.push(found);
-    }
-    
-    // 追加未指定的已配置模型
-    for (const m of available) {
-      if (!sorted.find(s => s.id === m.id)) {
-        sorted.push(m);
-      }
-    }
-    
-    return sorted;
-  }
-
-  /**
    * 生成摘要（核心方法）
    * 按优先级顺序尝试调用各模型，失败自动切换
    */
@@ -274,14 +204,17 @@ export class AISummarizer {
     text: string,
     options: SummarizeOptions = {}
   ): Promise<SummarizeResult> {
-    const priority = options.modelPriority || this.defaultPriority;
     const length = options.summaryLength || 'medium';
     const sessionId = options.sessionId;
-
     const prompt = buildPrompt(text, length);
-    const modelsToTry = this.getModelsByPriority(priority);
 
-    if (modelsToTry.length === 0) {
+    // Get models sorted by priority
+    const registry = getRegistry(this.models);
+    const modelsByPriority = registry.getModelsByPriority();
+
+    const available = modelsByPriority.filter(m => m.apiKey && m.apiKey.trim().length > 0);
+
+    if (available.length === 0) {
       return {
         success: false,
         summary: '',
@@ -293,24 +226,35 @@ export class AISummarizer {
 
     const errors: string[] = [];
 
-    for (const model of modelsToTry) {
+    for (const model of available) {
       try {
         console.log(`[AISummarizer] 尝试使用模型: ${model.name} (${model.provider})`);
         
-        const content = await callOpenAICompatible(model, prompt, sessionId);
-        const { summary, keywords } = parseAIResponse(content);
-
-        return {
-          success: true,
-          summary,
-          keywords,
-          modelUsed: model.name,
+        const callOptions: CallOptions = {
+          sessionId,
+          maxTokens: 1000,
+          temperature: 0.3,
         };
+        
+        const result = await registry.call([
+          { role: 'user', content: prompt }
+        ], callOptions);
+
+        if (result.success) {
+          const { summary, keywords } = parseAIResponse(result.content);
+          return {
+            success: true,
+            summary,
+            keywords,
+            modelUsed: model.name,
+          };
+        }
+
+        errors.push(`${model.name}: ${result.error}`);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.warn(`[AISummarizer] 模型 ${model.name} 调用失败: ${errorMsg}`);
         errors.push(`${model.name}: ${errorMsg}`);
-        // 自动切换到下一个模型
         continue;
       }
     }
@@ -328,15 +272,9 @@ export class AISummarizer {
   /**
    * 测试单个模型连接
    */
-  async testModel(config: ModelConfig): Promise<{ success: boolean; message: string }> {
-    try {
-      const prompt = '请回复JSON格式：{"status": "ok", "message": "连接测试成功"}';
-      await callOpenAICompatible(config, prompt);
-      return { success: true, message: '连接成功' };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, message: msg };
-    }
+  async testModel(modelId: string): Promise<{ success: boolean; message: string }> {
+    const registry = getRegistry(this.models);
+    return registry.testModel(modelId);
   }
 
   /**
@@ -346,7 +284,7 @@ export class AISummarizer {
     return DEFAULT_MODEL_CONFIGS.map((cfg, index) => ({
       ...cfg,
       id: `model-${index + 1}`,
-      isDefault: index === 0, // 第一个为默认
+      isEnabled: index === 0, // 第一个为默认启用
     }));
   }
 }

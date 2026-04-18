@@ -9,7 +9,7 @@ export const DEFAULT_MODEL_CONFIGS: Omit<ModelConfig, 'id' | 'isDefault'>[] = [
   {
     name: 'MiniMax M2.7',
     provider: 'minimax',
-    apiBaseUrl: 'https://api.minimax.chat/v',
+    apiBaseUrl: 'https://api.minimax.chat/v1',
     apiKey: '',
     modelName: 'MiniMax-M2.7',
     temperature: 0.3,
@@ -18,7 +18,7 @@ export const DEFAULT_MODEL_CONFIGS: Omit<ModelConfig, 'id' | 'isDefault'>[] = [
   {
     name: '小米 MiLM',
     provider: 'xiaomi',
-    apiBaseUrl: 'https://account.platform.minimax.io',
+    apiBaseUrl: 'https://api.xiaomimimo.com/v1',
     apiKey: '',
     modelName: 'MiLM',
     temperature: 0.3,
