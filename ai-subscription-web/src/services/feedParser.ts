@@ -11,50 +11,63 @@ const CORS_PROXIES = [
 ];
 
 /**
- * 依次尝试每个代理获取内容，成功即返回
- * 最后一个代理失败后尝试直接 fetch（绕过代理）
+ * 并发尝试多个 CORS 代理 + 直连，最快成功者胜出
  */
 async function fetchWithProxyFallback(
   url: string,
-  options: RequestInit,
-  proxyIndex = 0
+  options: RequestInit
 ): Promise<Response> {
-  if (proxyIndex < CORS_PROXIES.length) {
-    const proxyUrl = `${CORS_PROXIES[proxyIndex]}${encodeURIComponent(url)}`;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    try {
-      const response = await fetch(proxyUrl, {
+  // 策略：直连 + 两个代理，同时竞争
+  const strategies: Array<() => Promise<Response>> = [
+    // 策略 1：直接 fetch（有些源没有 CORS 问题）
+    () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+        clearTimeout(timeout)
+      );
+    },
+    // 策略 2：allorigins 代理
+    () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      return fetch(`${CORS_PROXIES[0]}${encodeURIComponent(url)}`, {
         ...options,
         signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      }).finally(() => clearTimeout(timeout));
+    },
+    // 策略 3：codetabs 代理
+    () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      return fetch(`${CORS_PROXIES[1]}${encodeURIComponent(url)}`, {
+        ...options,
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
+    },
+  ];
 
-      // 2xx = 成功
-      if (response.ok) {
-        return response;
+  // Promise.allSettled 收集所有结果（不提前 rejection）
+  const settled = await Promise.all(
+    strategies.map(async (strategy) => {
+      try {
+        const response = await strategy();
+        // 只有 2xx 才算成功
+        return response.ok ? { ok: true, response } : { ok: false, response };
+      } catch {
+        return { ok: false, response: null };
       }
-      // 非 2xx，尝试下一个代理
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      return fetchWithProxyFallback(url, options, proxyIndex + 1);
-    } catch {
-      clearTimeout(timeout);
-      // abort 或 network error，尝试下一个代理
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      return fetchWithProxyFallback(url, options, proxyIndex + 1);
-    }
+    })
+  );
+
+  // 找第一个成功的
+  const firstOk = settled.find((r) => r.ok);
+  if (firstOk?.response) {
+    return firstOk.response;
   }
 
-  // 所有代理都失败，尝试直接 fetch（绕过代理，直连源站）
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
+  // 全部失败，抛出最后一个错误
+  throw new Error('All fetch strategies failed');
 }
 
 /**
