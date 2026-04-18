@@ -21,28 +21,40 @@ async function fetchWithProxyFallback(
 ): Promise<Response> {
   if (proxyIndex < CORS_PROXIES.length) {
     const proxyUrl = `${CORS_PROXIES[proxyIndex]}${encodeURIComponent(url)}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     try {
       const response = await fetch(proxyUrl, {
         ...options,
-        signal: AbortSignal.timeout(12000),
+        signal: controller.signal,
       });
-      if (!response.ok && response.status !== 408) {
+      clearTimeout(timeout);
+
+      // 2xx = 成功
+      if (response.ok) {
         return response;
       }
-      // 4xx/5xx 或 408 = 重试下一个代理
+      // 非 2xx，尝试下一个代理
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       return fetchWithProxyFallback(url, options, proxyIndex + 1);
     } catch {
+      clearTimeout(timeout);
+      // abort 或 network error，尝试下一个代理
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       return fetchWithProxyFallback(url, options, proxyIndex + 1);
     }
   }
 
-  // 所有代理都失败，尝试直接 fetch（有些源可能没 CORS 问题）
-  return fetch(url, {
-    ...options,
-    signal: AbortSignal.timeout(8000),
-  });
+  // 所有代理都失败，尝试直接 fetch（绕过代理，直连源站）
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
