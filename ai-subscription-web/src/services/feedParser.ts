@@ -52,22 +52,38 @@ async function fetchWithProxyFallback(
     strategies.map(async (strategy) => {
       try {
         const response = await strategy();
-        // 只有 2xx 才算成功
-        return response.ok ? { ok: true, response } : { ok: false, response };
+        if (!response.ok) {
+          return { ok: false, response: null, reason: `HTTP ${response.status}` };
+        }
+        // HTTP 200 可能返回空 body（如 allorigins 超时）或 HTML 错误页
+        const text = await response.text();
+        if (!text || text.trim() === '') {
+          return { ok: false, response: null, reason: 'Empty body' };
+        }
+        if (text.includes('<html') || text.includes('<!DOCTYPE')) {
+          return { ok: false, response: null, reason: 'HTML error page' };
+        }
+        return { ok: true, response, text };
       } catch {
-        return { ok: false, response: null };
+        return { ok: false, response: null, reason: 'Network error' };
       }
     })
   );
 
-  // 找第一个成功的
+  // 找第一个成功的（携带已读取的 text）
   const firstOk = settled.find((r) => r.ok);
   if (firstOk?.response) {
-    return firstOk.response;
+    // 用已读取的 text 重新构造 Response
+    return new Response(firstOk.text, {
+      status: firstOk.response.status,
+      statusText: firstOk.response.statusText,
+      headers: { 'content-type': firstOk.response.headers.get('content-type') || 'application/xml' },
+    });
   }
 
-  // 全部失败，抛出最后一个错误
-  throw new Error('All fetch strategies failed');
+  // 全部失败，抛出诊断信息
+  const reasons = settled.map((r) => r.reason).join('; ');
+  throw new Error(`All fetch strategies failed: ${reasons}`);
 }
 
 /**
