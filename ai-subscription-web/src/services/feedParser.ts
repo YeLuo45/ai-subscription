@@ -1,28 +1,48 @@
 /**
  * Feed Parser Service - Web 端 RSS/Atom/JSON API 内容抓取
- * 支持 CORS 代理绕过跨域限制
+ * 支持多 CORS 代理 fallback 绕过跨域限制
  */
 import { ParsedItem, FetchResult, SubscriptionType } from '../types';
 
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+/** CORS 代理列表，按优先级尝试 */
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://api.codetabs.com/v1/proxy?quest=',
+];
 
 /**
- * 判断是否需要使用 CORS 代理
+ * 依次尝试每个代理获取内容，成功即返回
+ * 最后一个代理失败后尝试直接 fetch（绕过代理）
  */
-function needsProxy(url: string): boolean {
-  try {
-    const origin = new URL(url).origin;
-    return origin !== window.location.origin;
-  } catch {
-    return false;
+async function fetchWithProxyFallback(
+  url: string,
+  options: RequestInit,
+  proxyIndex = 0
+): Promise<Response> {
+  if (proxyIndex < CORS_PROXIES.length) {
+    const proxyUrl = `${CORS_PROXIES[proxyIndex]}${encodeURIComponent(url)}`;
+    try {
+      const response = await fetch(proxyUrl, {
+        ...options,
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!response.ok && response.status !== 408) {
+        return response;
+      }
+      // 4xx/5xx 或 408 = 重试下一个代理
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      return fetchWithProxyFallback(url, options, proxyIndex + 1);
+    } catch {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      return fetchWithProxyFallback(url, options, proxyIndex + 1);
+    }
   }
-}
 
-/**
- * 获取代理后的 URL
- */
-function withProxy(url: string): string {
-  return `${CORS_PROXY}${encodeURIComponent(url)}`;
+  // 所有代理都失败，尝试直接 fetch（有些源可能没 CORS 问题）
+  return fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(8000),
+  });
 }
 
 /**
@@ -78,8 +98,7 @@ function getFeedTitle(doc: Document, type: 'rss' | 'atom'): string {
  * 抓取 RSS / Atom 源
  */
 async function fetchRSSOrAtom(url: string, type: 'rss' | 'atom'): Promise<FetchResult> {
-  const fetchUrl = needsProxy(url) ? withProxy(url) : url;
-  const response = await fetch(fetchUrl, {
+  const response = await fetchWithProxyFallback(url, {
     headers: {
       'Accept': type === 'rss' ? 'application/rss+xml, application/xml, text/xml' : 'application/atom+xml, application/xml, text/xml',
       'User-Agent': 'AI Subscription Web/1.0',
@@ -91,6 +110,12 @@ async function fetchRSSOrAtom(url: string, type: 'rss' | 'atom'): Promise<FetchR
   }
 
   const xmlText = await response.text();
+
+  // 检查是否返回了错误页面（如 allorigins 404/500 页面）
+  if (xmlText.includes('<html') || xmlText.includes('<!DOCTYPE')) {
+    throw new Error('Proxy returned HTML error page');
+  }
+
   const items = parseXML(xmlText, type);
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'text/xml');
@@ -103,8 +128,7 @@ async function fetchRSSOrAtom(url: string, type: 'rss' | 'atom'): Promise<FetchR
  * 抓取 JSON API
  */
 async function fetchJSONApi(url: string): Promise<FetchResult> {
-  const fetchUrl = needsProxy(url) ? withProxy(url) : url;
-  const response = await fetch(fetchUrl, {
+  const response = await fetchWithProxyFallback(url, {
     headers: {
       'Accept': 'application/json',
       'User-Agent': 'AI Subscription Web/1.0',
@@ -170,7 +194,7 @@ export async function fetchFeed(
 
   // 自动检测
   try {
-    const response = await fetch(needsProxy(url) ? withProxy(url) : url, {
+    const response = await fetchWithProxyFallback(url, {
       method: 'HEAD',
       headers: { 'User-Agent': 'AI Subscription Web/1.0' },
     });
