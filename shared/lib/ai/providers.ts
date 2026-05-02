@@ -3,9 +3,7 @@
  * Central registry of all supported AI providers and their model configurations
  */
 
-import type { ProviderConfig, ProviderId, ProviderType } from './types/provider';
-
-export { PROVIDERS, resolveProviderType, resolveModelId, getProviderConfig };
+import type { ProviderConfig, ProviderId } from './types/provider';
 
 // ============================================================
 // Provider Registry
@@ -203,3 +201,6 @@ function resolveModelId(model: string): string {
 function getProviderConfig(providerId: ProviderId): ProviderConfig | undefined {
   return PROVIDERS[providerId];
 }
+
+// Export functions
+export { resolveProviderType, resolveModelId, getProviderConfig };

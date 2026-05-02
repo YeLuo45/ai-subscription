@@ -8,7 +8,6 @@
 
 import type { SimpleMessage } from '../../../shared/lib/ai/types/provider';
 import { streamLLM } from '../../../shared/lib/ai/llm';
-import { PROVIDERS } from '../../../shared/lib/ai/providers';
 
 // ============================================================
 // Prompt & Keyword Helpers
@@ -116,7 +115,7 @@ export async function POST(req: Request): Promise<Response> {
 
         const messages: SimpleMessage[] = [{ role: 'user', content: prompt }];
 
-        const generator = streamLLM(
+        const generator = await streamLLM(
           {
             model: modelString,
             messages,

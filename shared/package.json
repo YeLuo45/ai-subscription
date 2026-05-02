@@ -1,0 +1,13 @@
+{
+  "name": "@ai-subscription/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "lib/ai/llm.ts",
+  "types": "lib/ai/types/provider.ts",
+  "exports": {
+    ".": "./lib/ai/llm.ts",
+    "./providers": "./lib/ai/providers.ts",
+    "./thinking-context": "./lib/ai/thinking-context.ts",
+    "./json-stream-parser": "./lib/utils/json-stream-parser.ts"
+  }
+}
