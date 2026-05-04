@@ -125,7 +125,14 @@ export async function getArticles(subscriptionId?: string, limit = 50): Promise<
 
 export async function saveArticle(article: Omit<Article, 'id' | 'fetchedAt'>): Promise<Article> {
   const store = await getStore(STORES.articles, 'readwrite');
-  const full: Article = { ...article, id: generateId(), fetchedAt: new Date().toISOString() };
+  const full: Article = { 
+    ...article, 
+    id: generateId(), 
+    fetchedAt: new Date().toISOString(),
+    isRead: article.isRead ?? false,
+    isStarred: article.isStarred ?? false,
+    isReadLater: article.isReadLater ?? false,
+  };
   return new Promise((resolve, reject) => {
     const req = store.add(full);
     req.onsuccess = () => resolve(full);
@@ -139,6 +146,33 @@ export async function getArticleByLink(link: string): Promise<Article | undefine
     const req = store.index('link').get(link);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  });
+}
+
+export async function updateArticle(article: Article): Promise<Article> {
+  const store = await getStore(STORES.articles, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.put(article);
+    req.onsuccess = () => resolve(article);
+    req.onerror = () => reject(request.error);
+  });
+}
+
+export async function getReadLaterArticles(): Promise<Article[]> {
+  const store = await getStore(STORES.articles);
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => {
+      const articles = (req.result as Article[])
+        .filter(a => a.isReadLater)
+        .sort((a, b) => {
+          const aTime = a.readLaterAt ? new Date(a.readLaterAt).getTime() : 0;
+          const bTime = b.readLaterAt ? new Date(b.readLaterAt).getTime() : 0;
+          return bTime - aTime;
+        });
+      resolve(articles);
+    };
+    req.onerror = () => reject(request.error);
   });
 }
 

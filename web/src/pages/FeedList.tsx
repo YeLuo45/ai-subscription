@@ -19,6 +19,7 @@ import {
   Empty,
   Spin,
   Drawer,
+  Badge,
 } from 'antd';
 import {
   SettingOutlined,
@@ -32,6 +33,7 @@ import {
   GlobalOutlined,
   CloseOutlined,
   FileTextOutlined,
+  BookOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, Article, AIModel, AppSettings } from '../types';
@@ -46,6 +48,7 @@ import {
   getSettings,
   saveSettings,
   getPushHistory,
+  getReadLaterArticles,
 } from '../services/storage';
 import { fetchFeed, fetchGitHubTrending } from '../services/feedParser';
 import { summarizeWithFallback } from '../services/aiAdapter';
@@ -57,11 +60,12 @@ import ImportExportPanel from '../components/ImportExportPanel';
 import OfflineBanner from '../components/OfflineBanner';
 import InstallPrompt from '../components/InstallPrompt';
 import SummaryHistory from './SummaryHistory';
+import ReadLater from './ReadLater';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater';
 
 export default function App() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
@@ -70,6 +74,7 @@ export default function App() {
   const [models, setModels] = useState<AIModel[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [pushHistory, setPushHistory] = useState<Awaited<ReturnType<typeof getPushHistory>>>([]);
+  const [readLaterCount, setReadLaterCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editSub, setEditSub] = useState<Subscription | null>(null);
@@ -86,6 +91,8 @@ export default function App() {
       getSettings(),
       getPushHistory(),
     ]);
+    const rlArts = await getReadLaterArticles();
+    setReadLaterCount(rlArts.filter(a => a.isReadLater).length);
     setSubscriptions(subs);
     setModels(mods);
     setSettings(sets);
@@ -126,6 +133,7 @@ export default function App() {
     { key: 'settings', icon: <SettingOutlined />, label: '推送设置' },
     { key: 'history', icon: <HistoryOutlined />, label: '推送历史' },
     { key: 'summaries', icon: <FileTextOutlined />, label: '摘要历史' },
+    { key: 'readlater', label: <span>稍后读 {readLaterCount > 0 ? <Badge count={readLaterCount} size="small" /> : null}</span>, icon: <BookOutlined /> },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -220,6 +228,19 @@ export default function App() {
     } finally {
       setSummarizing(false);
     }
+  }
+
+  async function handleToggleReadLater(article: Article) {
+    const { updateArticle: ua } = await import('../services/storage');
+    const updated = { 
+      ...article, 
+      isReadLater: !article.isReadLater,
+      readLaterAt: !article.isReadLater ? new Date().toISOString() : undefined,
+    };
+    await ua(updated);
+    setArticles(prev => prev.map(a => a.id === updated.id ? updated : a));
+    setReadLaterCount(prev => updated.isReadLater ? prev + 1 : prev - 1);
+    message.success(updated.isReadLater ? '已加入稍后读' : '已从稍后读移除');
   }
 
   async function handleSaveSettings(values: Record<string, unknown>) {
@@ -414,6 +435,7 @@ export default function App() {
           <List.Item
             actions={[
               <Button key="summarize" icon={<RobotOutlined />} size="small" loading={summarizing} onClick={() => handleSummarizeArticle(article)}>AI摘要</Button>,
+              <Button key="readlater" icon={article.isReadLater ? <BookOutlined /> : <BookOutlined />} size="small" onClick={() => handleToggleReadLater(article)} />,
               <Button key="open" icon={<EyeOutlined />} size="small" onClick={() => window.open(article.link, '_blank')} />,
             ]}
           >
@@ -708,6 +730,7 @@ export default function App() {
           {activeMenu === 'settings' && renderSettings()}
           {activeMenu === 'history' && renderHistory()}
           {activeMenu === 'summaries' && <SummaryHistory />}
+          {activeMenu === 'readlater' && <ReadLater />}
         </Content>
       </Layout>
 

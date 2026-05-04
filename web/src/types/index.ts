@@ -39,6 +39,8 @@ export interface Article {
   fetchedAt: string;
   isRead: boolean;
   isStarred: boolean;
+  isReadLater: boolean;    // ADD: read later flag
+  readLaterAt?: string;   // ADD: when added to read later
 }
 
 export interface Summary {
