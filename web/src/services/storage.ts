@@ -1,5 +1,5 @@
 // IndexedDB-based local storage for Web platform
-import type { Subscription, AIModel, Article, Summary, PushHistory, AppSettings } from '../types';
+import type { Subscription, SubscriptionGroup, AIModel, Article, Summary, PushHistory, AppSettings } from '../types';
 
 const DB_NAME = 'AISubscriptionDB';
 const DB_VERSION = 1;
@@ -11,6 +11,7 @@ const STORES = {
   summaries: 'summaries',
   pushHistory: 'pushHistory',
   settings: 'settings',
+  groups: 'groups',
 } as const;
 
 let dbInstance: IDBDatabase | null = null;
@@ -42,6 +43,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORES.settings)) {
         db.createObjectStore(STORES.settings, { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains(STORES.groups)) {
+        db.createObjectStore(STORES.groups, { keyPath: 'id' });
       }
     };
   });
@@ -281,7 +285,56 @@ export async function savePushHistory(record: Omit<PushHistory, 'id'>): Promise<
   return new Promise((resolve, reject) => {
     const req = store.add(full);
     req.onsuccess = () => resolve(full);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => reject(request.error);
+  });
+}
+
+// ============ Groups ============
+export async function getGroups(): Promise<SubscriptionGroup[]> {
+  const store = await getStore(STORES.groups);
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve((req.result as SubscriptionGroup[]).sort((a, b) => a.order - b.order));
+    req.onerror = () => reject(request.error);
+  });
+}
+
+export async function saveGroup(group: Omit<SubscriptionGroup, 'id' | 'createdAt'>): Promise<SubscriptionGroup> {
+  const store = await getStore(STORES.groups, 'readwrite');
+  const full: SubscriptionGroup = {
+    ...group,
+    id: generateId(),
+    createdAt: new Date().toISOString(),
+  };
+  return new Promise((resolve, reject) => {
+    const req = store.put(full);
+    req.onsuccess = () => resolve(full);
+    req.onerror = () => reject(request.error);
+  });
+}
+
+export async function deleteGroup(id: string): Promise<void> {
+  const store = await getStore(STORES.groups, 'readwrite');
+  // First, update all subscriptions in this group to ungrouped
+  const allSubs = await getSubscriptions();
+  const subsInGroup = allSubs.filter(s => s.groupId === id);
+  for (const sub of subsInGroup) {
+    await updateSubscription({ ...sub, groupId: undefined });
+  }
+  // Then delete the group
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(request.error);
+  });
+}
+
+export async function updateGroup(group: SubscriptionGroup): Promise<SubscriptionGroup> {
+  const store = await getStore(STORES.groups, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.put(group);
+    req.onsuccess = () => resolve(group);
+    req.onerror = () => reject(request.error);
   });
 }
 

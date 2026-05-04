@@ -34,9 +34,11 @@ import {
   CloseOutlined,
   FileTextOutlined,
   BookOutlined,
+  FolderOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import type { Subscription, Article, AIModel, AppSettings } from '../types';
+import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings } from '../types';
 import { PRESET_SUBSCRIPTIONS, DEFAULT_MODELS } from '../types';
 import {
   getSubscriptions,
@@ -49,7 +51,10 @@ import {
   saveSettings,
   getPushHistory,
   getReadLaterArticles,
+  getGroups,
+  updateGroup,
 } from '../services/storage';
+import GroupManager from '../components/GroupManager';
 import { fetchFeed, fetchGitHubTrending } from '../services/feedParser';
 import { summarizeWithFallback } from '../services/aiAdapter';
 import { requestPermission } from '../services/notifications';
@@ -71,12 +76,14 @@ type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summa
 export default function App() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [groups, setGroups] = useState<SubscriptionGroup[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [models, setModels] = useState<AIModel[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [pushHistory, setPushHistory] = useState<Awaited<ReturnType<typeof getPushHistory>>>([]);
   const [readLaterCount, setReadLaterCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editSub, setEditSub] = useState<Subscription | null>(null);
   const [addForm] = Form.useForm();
@@ -86,11 +93,12 @@ export default function App() {
   const [currentSummary, setCurrentSummary] = useState<{ content: string; keywords: string[]; articleLink: string } | null>(null);
 
   const loadData = useCallback(async () => {
-    const [subs, mods, sets, hist] = await Promise.all([
+    const [subs, mods, sets, hist, gs] = await Promise.all([
       getSubscriptions(),
       getModels(),
       getSettings(),
       getPushHistory(),
+      getGroups(),
     ]);
     const rlArts = await getReadLaterArticles();
     setReadLaterCount(rlArts.filter(a => a.isReadLater).length);
@@ -98,6 +106,7 @@ export default function App() {
     setModels(mods);
     setSettings(sets);
     setPushHistory(hist);
+    setGroups(gs);
     if (subs.length === 0) {
       // Initialize with presets
       for (const preset of PRESET_SUBSCRIPTIONS) {
@@ -113,6 +122,8 @@ export default function App() {
       const newMods = await getModels();
       setModels(newMods);
     }
+    // Initialize collapsed group IDs from groups data
+    setCollapsedGroupIds(new Set(gs.filter(g => g.collapsed).map(g => g.id)));
     startScheduler(30);
   }, []);
 
@@ -347,6 +358,24 @@ export default function App() {
     }
   }
 
+  async function handleToggleGroupCollapse(groupId: string) {
+    const isCollapsed = collapsedGroupIds.has(groupId);
+    const newCollapsed = new Set(collapsedGroupIds);
+    if (isCollapsed) {
+      newCollapsed.delete(groupId);
+    } else {
+      newCollapsed.add(groupId);
+    }
+    setCollapsedGroupIds(newCollapsed);
+    // Persist to groups
+    const group = groups.find(g => g.id === groupId);
+    if (group) {
+      await updateGroup({ ...group, collapsed: !isCollapsed });
+    }
+    const newGroups = await getGroups();
+    setGroups(newGroups);
+  }
+
   const renderFeeds = () => (
     <div>
       <InstallPrompt />
@@ -354,26 +383,124 @@ export default function App() {
         <Button icon={<PlusOutlined />} type="primary" onClick={() => setAddModalOpen(true)}>添加订阅源</Button>
         <Button icon={<ReloadOutlined />} onClick={handleRefreshAll} loading={loading}>刷新全部</Button>
       </div>
-      <List
-        dataSource={subscriptions}
-        renderItem={(sub) => (
-          <List.Item
-            actions={[
-              <Switch key="toggle" checked={sub.enabled} onChange={() => handleToggleEnabled(sub)} size="small" />,
-              <Tooltip key="edit" title="编辑"><Button icon={<EditOutlined />} size="small" onClick={() => { setEditSub(sub); modelForm.setFieldsValue(sub); }} /></Tooltip>,
-              <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id)}>
-                <Button icon={<DeleteOutlined />} size="small" danger />
-              </Popconfirm>,
-            ]}
-          >
-            <List.Item.Meta
-              title={<Space><Text strong={sub.enabled}>{sub.name}</Text><Tag>{sub.category}</Tag><Tag color="blue">{sub.type.toUpperCase()}</Tag></Space>}
-              description={<Text type="secondary" style={{ fontSize: 12 }}>{sub.url}</Text>}
+
+      {/* Grouped subscriptions */}
+      {groups.map((group) => {
+        const groupSubs = subscriptions.filter(s => s.groupId === group.id);
+        const isCollapsed = collapsedGroupIds.has(group.id);
+        return (
+          <div key={group.id} style={{ marginBottom: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '8px 12px',
+                background: '#f5f5f5',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+              onClick={() => handleToggleGroupCollapse(group.id)}
+            >
+              {isCollapsed ? <FolderOutlined /> : <FolderOpenOutlined />}
+              <Text strong style={{ marginLeft: 8 }}>{group.name}</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>({groupSubs.length})</Text>
+            </div>
+            {!isCollapsed && (
+              <List
+                dataSource={groupSubs}
+                renderItem={(sub) => (
+                  <List.Item
+                    actions={[
+                      <Switch key="toggle" checked={sub.enabled} onChange={() => handleToggleEnabled(sub)} size="small" />,
+                      <Select
+                        key="group"
+                        size="small"
+                        placeholder="移动到分组"
+                        allowClear
+                        style={{ width: 120 }}
+                        value={sub.groupId}
+                        onChange={async (newGroupId) => {
+                          await updateSubscription({ ...sub, groupId: newGroupId });
+                          message.success(newGroupId ? '已移动到分组' : '已移出分组');
+                          const [newSubs, newGroups] = await Promise.all([getSubscriptions(), getGroups()]);
+                          setSubscriptions(newSubs);
+                          setGroups(newGroups);
+                        }}
+                        options={[
+                          { label: '未分组', value: undefined },
+                          ...groups.map(g => ({ label: g.name, value: g.id })),
+                        ]}
+                      />,
+                      <Tooltip key="edit" title="编辑"><Button icon={<EditOutlined />} size="small" onClick={() => { setEditSub(sub); modelForm.setFieldsValue(sub); }} /></Tooltip>,
+                      <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id)}>
+                        <Button icon={<DeleteOutlined />} size="small" danger />
+                      </Popconfirm>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={<Space><Text strong={sub.enabled}>{sub.name}</Text><Tag>{sub.category}</Tag><Tag color="blue">{sub.type.toUpperCase()}</Tag></Space>}
+                      description={<Text type="secondary" style={{ fontSize: 12 }}>{sub.url}</Text>}
+                    />
+                  </List.Item>
+                )}
+              />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Ungrouped subscriptions */}
+      {(() => {
+        const ungroupedSubs = subscriptions.filter(s => !s.groupId);
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', marginBottom: 8 }}>
+              <FolderOutlined />
+              <Text strong style={{ marginLeft: 8 }}>未分组</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>({ungroupedSubs.length})</Text>
+            </div>
+            <List
+              dataSource={ungroupedSubs}
+              renderItem={(sub) => (
+                <List.Item
+                  actions={[
+                    <Switch key="toggle" checked={sub.enabled} onChange={() => handleToggleEnabled(sub)} size="small" />,
+                    <Select
+                      key="group"
+                      size="small"
+                      placeholder="移动到分组"
+                      allowClear
+                      style={{ width: 120 }}
+                      value={sub.groupId}
+                      onChange={async (newGroupId) => {
+                        await updateSubscription({ ...sub, groupId: newGroupId });
+                        message.success(newGroupId ? '已移动到分组' : '已移出分组');
+                        const [newSubs, newGroups] = await Promise.all([getSubscriptions(), getGroups()]);
+                        setSubscriptions(newSubs);
+                        setGroups(newGroups);
+                      }}
+                      options={[
+                        { label: '未分组', value: undefined },
+                        ...groups.map(g => ({ label: g.name, value: g.id })),
+                      ]}
+                    />,
+                    <Tooltip key="edit" title="编辑"><Button icon={<EditOutlined />} size="small" onClick={() => { setEditSub(sub); modelForm.setFieldsValue(sub); }} /></Tooltip>,
+                    <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id)}>
+                      <Button icon={<DeleteOutlined />} size="small" danger />
+                    </Popconfirm>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    title={<Space><Text strong={sub.enabled}>{sub.name}</Text><Tag>{sub.category}</Tag><Tag color="blue">{sub.type.toUpperCase()}</Tag></Space>}
+                    description={<Text type="secondary" style={{ fontSize: 12 }}>{sub.url}</Text>}
+                  />
+                </List.Item>
+              )}
+              locale={{ emptyText: <Empty description="暂无订阅源" /> }}
             />
-          </List.Item>
-        )}
-        locale={{ emptyText: <Empty description="暂无订阅源" /> }}
-      />
+          </div>
+        );
+      })()}
 
       <Modal title="添加订阅源" open={addModalOpen} onCancel={() => { setAddModalOpen(false); addForm.resetFields(); }} footer={null}>
         <Form form={addForm} layout="vertical" onFinish={handleAddSubscription}>
@@ -648,6 +775,8 @@ export default function App() {
         <Card title="数据管理" size="small" style={{ marginTop: 16 }}>
           <ImportExportPanel />
         </Card>
+
+        <GroupManager />
       </Form>
     );
   };

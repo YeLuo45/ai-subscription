@@ -1,5 +1,13 @@
 // Core types for AI Subscription Aggregator
 
+export interface SubscriptionGroup {
+  id: string;
+  name: string;
+  order: number;
+  collapsed: boolean;
+  createdAt: string;
+}
+
 export interface Subscription {
   id: string;
   name: string;
@@ -12,6 +20,7 @@ export interface Subscription {
   lastFetchedAt?: string;
   createdAt: string;
   updatedAt: string;
+  groupId?: string;  // which group this subscription belongs to
 }
 
 export interface AIModel {
