@@ -108,6 +108,8 @@ export interface EmailSettings {
   fromName: string;
 }
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 export interface AppSettings {
   push: PushSettings;
   email: EmailSettings;
@@ -117,6 +119,7 @@ export interface AppSettings {
   webhookHeaders?: Record<string, string>;
   defaultFetchInterval: number;  // global default in minutes
   schedulerEnabled: boolean;
+  themeMode: ThemeMode;
 }
 
 export const PRESET_SUBSCRIPTIONS: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'lastFetchedAt'>[] = [

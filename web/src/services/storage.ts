@@ -377,6 +377,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   summaryLength: 'medium',
   defaultFetchInterval: 60,
   schedulerEnabled: true,
+  themeMode: 'light' as const,
 };
 
 export async function getSettings(): Promise<AppSettings> {

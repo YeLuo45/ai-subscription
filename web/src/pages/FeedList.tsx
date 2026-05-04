@@ -41,7 +41,7 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings } from '../types';
+import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
 import { PRESET_SUBSCRIPTIONS, DEFAULT_MODELS } from '../types';
 import {
   getSubscriptions,
@@ -307,6 +307,7 @@ export default function App() {
         : (values.webhookHeaders as Record<string, string>),
       defaultFetchInterval: Number(values.defaultFetchInterval) || 60,
       schedulerEnabled: Boolean(values.schedulerEnabled),
+      themeMode: values.themeMode as ThemeMode,
     };
     await saveSettings(updated);
     setSettings(updated);
@@ -740,6 +741,7 @@ export default function App() {
           webhookHeaders: settings.webhookHeaders ? JSON.stringify(settings.webhookHeaders, null, 2) : '{}',
           defaultFetchInterval: settings.defaultFetchInterval || 60,
           schedulerEnabled: settings.schedulerEnabled !== false,
+          themeMode: settings.themeMode || 'light',
         }}
         onFinish={handleSaveSettings}
       >
@@ -799,6 +801,20 @@ export default function App() {
         <Card title="刷新设置" size="small" style={{ marginTop: 16 }}>
           <Form.Item name="schedulerEnabled" valuePropName="checked" label="启用定时刷新">
             <Switch />
+          </Form.Item>
+          <Form.Item name="themeMode" label="主题模式">
+            <Select
+              options={[
+                { value: 'light', label: '浅色' },
+                { value: 'dark', label: '深色' },
+                { value: 'system', label: '跟随系统' },
+              ]}
+              onChange={(val) => {
+                const isDark = val === 'dark' ||
+                  (val === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+              }}
+            />
           </Form.Item>
           <Form.Item name="defaultFetchInterval" label="全局刷新间隔">
             <Select options={[
