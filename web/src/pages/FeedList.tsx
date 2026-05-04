@@ -67,6 +67,7 @@ import InstallPrompt from '../components/InstallPrompt';
 import RealtimeStatus from '../components/RealtimeStatus';
 import SummaryHistory from './SummaryHistory';
 import ReadLater from './ReadLater';
+import NoteEditor from '../components/NoteEditor';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -91,6 +92,9 @@ export default function App() {
   const [summarizing, setSummarizing] = useState(false);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
   const [currentSummary, setCurrentSummary] = useState<{ content: string; keywords: string[]; articleLink: string } | null>(null);
+  const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
+  const [noteArticleId, setNoteArticleId] = useState<string | null>(null);
+  const [noteArticleTitle, setNoteArticleTitle] = useState<string>('');
 
   const loadData = useCallback(async () => {
     const [subs, mods, sets, hist, gs] = await Promise.all([
@@ -253,6 +257,12 @@ export default function App() {
     setArticles(prev => prev.map(a => a.id === updated.id ? updated : a));
     setReadLaterCount(prev => updated.isReadLater ? prev + 1 : prev - 1);
     message.success(updated.isReadLater ? '已加入稍后读' : '已从稍后读移除');
+  }
+
+  function openNoteDrawer(articleId: string, articleTitle: string) {
+    setNoteArticleId(articleId);
+    setNoteArticleTitle(articleTitle);
+    setNoteDrawerOpen(true);
   }
 
   async function handleSaveSettings(values: Record<string, unknown>) {
@@ -563,6 +573,7 @@ export default function App() {
           <List.Item
             actions={[
               <Button key="summarize" icon={<RobotOutlined />} size="small" loading={summarizing} onClick={() => handleSummarizeArticle(article)}>AI摘要</Button>,
+              <Button key="note" icon={<EditOutlined />} size="small" onClick={() => openNoteDrawer(article.id, article.title)} />,
               <Button key="readlater" icon={article.isReadLater ? <BookOutlined /> : <BookOutlined />} size="small" onClick={() => handleToggleReadLater(article)} />,
               <Button key="open" icon={<EyeOutlined />} size="small" onClick={() => window.open(article.link, '_blank')} />,
             ]}
@@ -881,6 +892,20 @@ export default function App() {
             keywords={currentSummary.keywords}
             originalArticleLink={currentSummary.articleLink}
           />
+        )}
+      </Drawer>
+
+      {/* Note Editor Drawer */}
+      <Drawer
+        title="📝 笔记"
+        placement="right"
+        width={400}
+        open={noteDrawerOpen}
+        onClose={() => setNoteDrawerOpen(false)}
+        closeIcon={<CloseOutlined />}
+      >
+        {noteArticleId && (
+          <NoteEditor articleId={noteArticleId} articleTitle={noteArticleTitle} />
         )}
       </Drawer>
     </Layout>

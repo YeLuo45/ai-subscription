@@ -77,6 +77,14 @@ export interface PushHistory {
   source?: 'scheduled' | 'realtime';
 }
 
+export interface ArticleNote {
+  id: string;
+  articleId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PushSettings {
   enabled: boolean;
   time: string; // HH:mm

@@ -1,8 +1,8 @@
 // IndexedDB-based local storage for Web platform
-import type { Subscription, SubscriptionGroup, AIModel, Article, Summary, PushHistory, AppSettings } from '../types';
+import type { Subscription, SubscriptionGroup, AIModel, Article, Summary, PushHistory, AppSettings, ArticleNote } from '../types';
 
 const DB_NAME = 'AISubscriptionDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
   subscriptions: 'subscriptions',
@@ -12,6 +12,7 @@ const STORES = {
   pushHistory: 'pushHistory',
   settings: 'settings',
   groups: 'groups',
+  notes: 'notes',
 } as const;
 
 let dbInstance: IDBDatabase | null = null;
@@ -46,6 +47,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORES.groups)) {
         db.createObjectStore(STORES.groups, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(STORES.notes)) {
+        db.createObjectStore(STORES.notes, { keyPath: 'id' });
       }
     };
   });
@@ -377,6 +381,54 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
   const store = await getStore(STORES.settings, 'readwrite');
   return new Promise((resolve, reject) => {
     const req = store.put({ key: 'app_settings', value: settings });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ============ Notes ============
+export async function getNoteByArticleId(articleId: string): Promise<ArticleNote | null> {
+  const store = await getStore(STORES.notes);
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => {
+      const notes = req.result as ArticleNote[];
+      resolve(notes.find(n => n.articleId === articleId) || null);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveNote(note: Omit<ArticleNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<ArticleNote> {
+  const store = await getStore(STORES.notes, 'readwrite');
+  const now = new Date().toISOString();
+  const full: ArticleNote = {
+    ...note,
+    id: generateId(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  return new Promise((resolve, reject) => {
+    const req = store.put(full);
+    req.onsuccess = () => resolve(full);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function updateNote(note: ArticleNote): Promise<ArticleNote> {
+  const store = await getStore(STORES.notes, 'readwrite');
+  const updated = { ...note, updatedAt: new Date().toISOString() };
+  return new Promise((resolve, reject) => {
+    const req = store.put(updated);
+    req.onsuccess = () => resolve(updated);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const store = await getStore(STORES.notes, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
