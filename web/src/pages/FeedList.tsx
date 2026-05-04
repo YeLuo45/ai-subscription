@@ -38,6 +38,7 @@ import {
   FolderOutlined,
   FolderOpenOutlined,
   StarOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings } from '../types';
@@ -71,11 +72,12 @@ import SummaryHistory from './SummaryHistory';
 import ReadLater from './ReadLater';
 import Recommendations from './Recommendations';
 import NoteEditor from '../components/NoteEditor';
+import SearchPage from './Search';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search';
 
 export default function App() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
@@ -154,6 +156,7 @@ export default function App() {
     { key: 'summaries', icon: <FileTextOutlined />, label: '摘要历史' },
     { key: 'readlater', label: <span>稍后读 {readLaterCount > 0 ? <Badge count={readLaterCount} size="small" /> : null}</span>, icon: <BookOutlined /> },
     { key: 'recommendations', icon: <StarOutlined />, label: '推荐' },
+    { key: 'search', icon: <SearchOutlined />, label: '搜索' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -933,6 +936,18 @@ export default function App() {
       </Header>
       <Layout>
         <Sider width={200} style={{ background: '#fff' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
+            <Input.Search
+              placeholder="搜索..."
+              prefix={<SearchOutlined />}
+              onSearch={(value) => {
+                if (value.trim()) {
+                  setActiveMenu('search');
+                  (window as any).__searchQuery = value;
+                }
+              }}
+            />
+          </div>
           <Menu mode="inline" selectedKeys={[activeMenu]} items={menuItems} onClick={({ key }) => setActiveMenu(key as MenuKey)} style={{ height: '100%' }} />
         </Sider>
         <Content style={{ padding: 24, minHeight: 280, overflow: 'auto' }}>
@@ -944,6 +959,7 @@ export default function App() {
           {activeMenu === 'summaries' && <SummaryHistory />}
           {activeMenu === 'readlater' && <ReadLater />}
           {activeMenu === 'recommendations' && <Recommendations />}
+          {activeMenu === 'search' && <SearchPage />}
         </Content>
       </Layout>
 
