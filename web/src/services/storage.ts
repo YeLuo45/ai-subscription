@@ -194,11 +194,35 @@ export async function getSummaries(articleId?: string): Promise<Summary[]> {
 
 export async function saveSummary(summary: Omit<Summary, 'id' | 'createdAt'>): Promise<Summary> {
   const store = await getStore(STORES.summaries, 'readwrite');
-  const full: Summary = { ...summary, id: generateId(), createdAt: new Date().toISOString() };
+  const full: Summary = { 
+    ...summary, 
+    id: generateId(), 
+    createdAt: new Date().toISOString(),
+    tags: summary.tags ?? [],
+    isStarred: summary.isStarred ?? false,
+  };
   return new Promise((resolve, reject) => {
     const req = store.add(full);
     req.onsuccess = () => resolve(full);
     req.onerror = () => reject(req.error);
+  });
+}
+
+export async function updateSummary(summary: Summary): Promise<Summary> {
+  const store = await getStore(STORES.summaries, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.put(summary);
+    req.onsuccess = () => resolve(summary);
+    req.onerror = () => reject(request.error);
+  });
+}
+
+export async function deleteSummary(id: string): Promise<void> {
+  const store = await getStore(STORES.summaries, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(request.error);
   });
 }
 

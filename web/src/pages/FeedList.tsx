@@ -31,6 +31,7 @@ import {
   EyeOutlined,
   GlobalOutlined,
   CloseOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, Article, AIModel, AppSettings } from '../types';
@@ -55,11 +56,12 @@ import TransformBar from '../components/TransformBar';
 import ImportExportPanel from '../components/ImportExportPanel';
 import OfflineBanner from '../components/OfflineBanner';
 import InstallPrompt from '../components/InstallPrompt';
+import SummaryHistory from './SummaryHistory';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries';
 
 export default function App() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
@@ -123,6 +125,7 @@ export default function App() {
     { key: 'models', icon: <RobotOutlined />, label: 'AI模型' },
     { key: 'settings', icon: <SettingOutlined />, label: '推送设置' },
     { key: 'history', icon: <HistoryOutlined />, label: '推送历史' },
+    { key: 'summaries', icon: <FileTextOutlined />, label: '摘要历史' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -704,6 +707,7 @@ export default function App() {
           {activeMenu === 'models' && renderModels()}
           {activeMenu === 'settings' && renderSettings()}
           {activeMenu === 'history' && renderHistory()}
+          {activeMenu === 'summaries' && <SummaryHistory />}
         </Content>
       </Layout>
 

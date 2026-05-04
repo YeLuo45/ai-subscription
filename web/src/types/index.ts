@@ -50,6 +50,8 @@ export interface Summary {
   modelId: string;
   tokenUsed: number;
   createdAt: string;
+  tags: string[];
+  isStarred: boolean;
 }
 
 export interface PushHistory {
