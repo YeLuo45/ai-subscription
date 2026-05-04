@@ -22,7 +22,13 @@
     "node-cron": "^3.0.3",
     "rss-parser": "^3.13.0",
     "nodemailer": "^6.9.15",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "ai": "^3.4.0",
+    "@ai-sdk/openai": "^0.0.70",
+    "@ai-sdk/anthropic": "^0.0.62",
+    "@ai-sdk/google": "^0.0.55",
+    "zod": "^3.23.8",
+    "mathjs": "^13.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
