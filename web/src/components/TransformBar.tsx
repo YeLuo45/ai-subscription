@@ -10,6 +10,7 @@ import { FileTextOutlined, TwitterOutlined, MailOutlined, MindOutlined, ExportOu
 import type { MenuProps } from 'antd';
 import MindMapViewer from './MindMapViewer';
 import SlidesViewer from './SlidesViewer';
+import SharePanel from './SharePanel';
 
 const { Text } = Typography;
 
@@ -250,6 +251,12 @@ export default function TransformBar({ summary, keywords, originalArticleLink }:
           }}>
             {transformedContent.content}
           </pre>
+          {transformedContent.content && (
+            <SharePanel 
+              content={transformedContent.content} 
+              title={formatButtons.find(f => f.key === activeFormat)?.label} 
+            />
+          )}
         </Card>
       );
     }
