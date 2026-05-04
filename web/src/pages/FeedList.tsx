@@ -52,6 +52,7 @@ import { requestPermission } from '../services/notifications';
 import { startScheduler, fetchAllSubscriptions, runScheduledPush } from '../services/scheduler';
 import { sendSubscriptionEmail } from '../services/email';
 import TransformBar from '../components/TransformBar';
+import ImportExportPanel from '../components/ImportExportPanel';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -613,6 +614,10 @@ export default function App() {
             ]} />
           </Form.Item>
           <Button type="primary" htmlType="submit">保存</Button>
+        </Card>
+
+        <Card title="数据管理" size="small" style={{ marginTop: 16 }}>
+          <ImportExportPanel />
         </Card>
       </Form>
     );
