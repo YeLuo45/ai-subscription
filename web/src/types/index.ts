@@ -57,7 +57,7 @@ export interface PushHistory {
   subscriptionId: string;
   title: string;
   summary: string;
-  pushChannel: 'notification' | 'email' | 'both';
+  pushChannel: 'notification' | 'email' | 'webhook' | 'both';
   pushedAt: string;
   status: 'success' | 'failure';
   errorMessage?: string;
@@ -68,7 +68,7 @@ export interface PushSettings {
   time: string; // HH:mm
   frequency: 'hourly' | 'daily' | 'weekly';
   contentType: 'title_only' | 'title_summary' | 'title_full_summary';
-  channel: 'notification' | 'email' | 'both';
+  channel: 'notification' | 'email' | 'webhook' | 'both';
   quietHoursEnabled: boolean;
   quietHoursStart: string; // HH:mm
   quietHoursEnd: string;   // HH:mm
@@ -90,6 +90,8 @@ export interface AppSettings {
   email: EmailSettings;
   defaultModelId: string;
   summaryLength: 'short' | 'medium' | 'long';
+  webhookUrl?: string;
+  webhookHeaders?: Record<string, string>;
 }
 
 export const PRESET_SUBSCRIPTIONS: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'lastFetchedAt'>[] = [

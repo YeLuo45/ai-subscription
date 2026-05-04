@@ -50,6 +50,7 @@ import { fetchFeed, fetchGitHubTrending } from '../services/feedParser';
 import { summarizeWithFallback } from '../services/aiAdapter';
 import { requestPermission } from '../services/notifications';
 import { startScheduler, fetchAllSubscriptions, runScheduledPush } from '../services/scheduler';
+import { sendSubscriptionEmail } from '../services/email';
 import TransformBar from '../components/TransformBar';
 
 const { Header, Sider, Content } = Layout;
@@ -242,6 +243,10 @@ export default function App() {
         fromName: values.fromName as string,
       },
       summaryLength: values.summaryLength as 'short' | 'medium' | 'long',
+      webhookUrl: values.webhookUrl as string,
+      webhookHeaders: typeof values.webhookHeaders === 'string' 
+        ? JSON.parse(values.webhookHeaders as string) 
+        : (values.webhookHeaders as Record<string, string>),
     };
     await saveSettings(updated);
     setSettings(updated);
@@ -268,6 +273,32 @@ export default function App() {
     }
     new Notification('AI订阅助手', { body: '通知测试成功！' });
     message.success('通知已发送');
+  }
+
+  async function handleTestEmail() {
+    if (!settings?.email.fromEmail) {
+      message.warning('请先配置发件人邮箱');
+      return;
+    }
+    const sent = await sendSubscriptionEmail(
+      settings.email.fromEmail,
+      '测试订阅',
+      3,
+      [
+        { title: '测试文章1', link: 'https://example.com/1', description: '测试描述1' },
+        { title: '测试文章2', link: 'https://example.com/2', description: '测试描述2' },
+        { title: '测试文章3', link: 'https://example.com/3', description: '测试描述3' },
+      ],
+      [
+        { title: '测试文章1', summary: '这是AI生成的摘要内容，用于测试邮件发送功能是否正常工作。' },
+        { title: '测试文章2', summary: '这是另一篇测试文章的AI摘要内容。' },
+      ]
+    );
+    if (sent) {
+      message.success('测试邮件已发送');
+    } else {
+      message.error('邮件发送失败');
+    }
   }
 
   async function handleTestFeed(values: Record<string, unknown>) {
@@ -484,6 +515,8 @@ export default function App() {
           fromEmail: settings.email.fromEmail,
           fromName: settings.email.fromName,
           summaryLength: settings.summaryLength,
+          webhookUrl: settings.webhookUrl || '',
+          webhookHeaders: settings.webhookHeaders ? JSON.stringify(settings.webhookHeaders, null, 2) : '{}',
         }}
         onFinish={handleSaveSettings}
       >
@@ -512,8 +545,15 @@ export default function App() {
             <Select options={[
               { value: 'notification', label: '通知栏' },
               { value: 'email', label: '邮件' },
-              { value: 'both', label: '两者都有' },
+              { value: 'webhook', label: 'Webhook' },
+              { value: 'both', label: '全部' },
             ]} />
+          </Form.Item>
+          <Form.Item name="webhookUrl" label="Webhook URL">
+            <Input placeholder="https://your-webhook-endpoint.com/push" />
+          </Form.Item>
+          <Form.Item name="webhookHeaders" label="Webhook Headers (JSON)">
+            <Input.TextArea placeholder='{"Authorization": "Bearer xxx"}' rows={2} />
           </Form.Item>
           <Form.Item name="quietHoursEnabled" valuePropName="checked" label="免打扰时段">
             <Switch />
@@ -529,6 +569,7 @@ export default function App() {
             <Button type="primary" htmlType="submit">保存设置</Button>
             <Button onClick={handleManualPush} loading={loading}>立即推送</Button>
             <Button onClick={handleTestNotification}>测试通知</Button>
+            <Button onClick={handleTestEmail}>测试邮件</Button>
           </Space>
         </Card>
 
@@ -556,6 +597,13 @@ export default function App() {
           </Form.Item>
         </Card>
 
+        <Card title="Cron 定时触发" size="small" style={{ marginTop: 16 }}>
+          <Form.Item label="Cron 端点 URL">
+            <Input.Password value={`${window.location.origin}/api/cron/notify?secret=YOUR_CRON_SECRET`} readOnly />
+          </Form.Item>
+          <Text type="secondary" style={{ fontSize: 12 }}>将此 URL 配置到外部定时服务（如 GitHub Actions、Vercel Cron）即可触发定时抓取</Text>
+        </Card>
+
         <Card title="摘要设置" size="small" style={{ marginTop: 16 }}>
           <Form.Item name="summaryLength" label="摘要长度">
             <Select options={[
@@ -570,20 +618,67 @@ export default function App() {
     );
   };
 
-  const renderHistory = () => (
-    <List
-      dataSource={pushHistory}
-      locale={{ emptyText: <Empty description="暂无推送记录" /> }}
-      renderItem={(item) => (
-        <List.Item>
-          <List.Item.Meta
-            title={<Space><Text strong>{item.title}</Text><Tag color={item.status === 'success' ? 'green' : 'red'}>{item.status}</Tag></Space>}
-            description={<Text type="secondary" style={{ fontSize: 12 }}>{new Date(item.pushedAt).toLocaleString('zh-CN')}</Text>}
-          />
-        </List.Item>
-      )}
-    />
-  );
+  const renderHistory = () => {
+    const handleRetry = async (item: typeof pushHistory[0]) => {
+      try {
+        await runScheduledPush();
+        message.success('重试推送已触发');
+        const hist = await getPushHistory();
+        setPushHistory(hist);
+      } catch {
+        message.error('重试失败');
+      }
+    };
+
+    const getChannelIcon = (channel: string) => {
+      switch (channel) {
+        case 'notification': return '🔔';
+        case 'email': return '📧';
+        case 'webhook': return '🔗';
+        case 'both': return '📦';
+        default: return '📬';
+      }
+    };
+
+    return (
+      <List
+        dataSource={pushHistory}
+        locale={{ emptyText: <Empty description="暂无推送记录" /> }}
+        renderItem={(item) => (
+          <List.Item
+            actions={[
+              item.status === 'failure' && (
+                <Button key="retry" size="small" onClick={() => handleRetry(item)}>重试</Button>
+              ),
+            ]}
+          >
+            <List.Item.Meta
+              title={
+                <Space>
+                  <Text>{getChannelIcon(item.pushChannel)}</Text>
+                  <Text strong>{item.title}</Text>
+                  <Tag color={item.status === 'success' ? 'green' : 'red'}>
+                    {item.status === 'success' ? '✅ 成功' : '❌ 失败'}
+                  </Tag>
+                  <Tag>{item.pushChannel}</Tag>
+                </Space>
+              }
+              description={
+                <Space direction="vertical" size={0}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {new Date(item.pushedAt).toLocaleString('zh-CN')}
+                  </Text>
+                  {item.errorMessage && (
+                    <Text type="danger" style={{ fontSize: 11 }}>{item.errorMessage}</Text>
+                  )}
+                </Space>
+              }
+            />
+          </List.Item>
+        )}
+      />
+    );
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

@@ -3,6 +3,8 @@ import type { Subscription } from '../types';
 import { fetchFeed, fetchGitHubTrending, attachSubscriptionId } from './feedParser';
 import { summarizeWithFallback } from './aiAdapter';
 import { notifyError } from './notifications';
+import { sendWebhook } from '../api/webhook';
+import { sendSubscriptionEmail } from './email';
 import {
   getSubscriptions,
   updateSubscription,
@@ -155,6 +157,61 @@ export async function runScheduledPush(): Promise<void> {
           body: notificationBody.slice(0, 200),
           icon: '/favicon.ico',
         });
+      }
+    }
+
+    // Send email if configured
+    if ((settings.push.channel === 'email' || settings.push.channel === 'both') && settings.email.enabled) {
+      const emailSent = await sendSubscriptionEmail(
+        settings.email.fromEmail || 'user@example.com',
+        sub.name,
+        subArticles.length,
+        subArticles.map(a => ({ title: a.title, link: a.link, description: a.description })),
+        summaries.map(s => ({ title: subArticles.find(a => a.id === s.articleId)?.title || '', summary: '' }))
+      );
+      
+      if (!emailSent) {
+        console.error(`Email send failed for ${sub.name}`);
+      }
+    }
+
+    // Send webhook if configured
+    if (settings.push.channel === 'webhook' || settings.push.channel === 'both') {
+      const webhookUrl = (settings as any).webhookUrl;
+      if (webhookUrl) {
+        const webhookHeaders = (settings as any).webhookHeaders || {};
+        const result = await sendWebhook(
+          webhookUrl,
+          {
+            subscription: sub.name,
+            count: subArticles.length,
+            articles: subArticles.map(a => ({
+              title: a.title,
+              link: a.link,
+              description: a.description,
+              pubDate: a.pubDate,
+            })),
+            summaries: summaries.map(s => ({
+              title: subArticles.find(a => a.id === s.articleId)?.title || '',
+              summary: s.summaryId || '',
+            })),
+            pushedAt: new Date().toISOString(),
+          },
+          webhookHeaders
+        );
+
+        if (!result.success) {
+          console.error(`Webhook send failed for ${sub.name}:`, result.error);
+          await savePushHistory({
+            subscriptionId: subId,
+            title: `[Webhook] ${notificationTitle}`,
+            summary: `推送失败: ${result.error}`,
+            pushChannel: 'webhook',
+            pushedAt: new Date().toISOString(),
+            status: 'failure',
+            errorMessage: result.error,
+          });
+        }
       }
     }
 
