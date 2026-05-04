@@ -18,6 +18,7 @@ import {
   Tooltip,
   Empty,
   Spin,
+  Drawer,
 } from 'antd';
 import {
   SettingOutlined,
@@ -29,6 +30,7 @@ import {
   EditOutlined,
   EyeOutlined,
   GlobalOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, Article, AIModel, AppSettings } from '../types';
@@ -48,6 +50,7 @@ import { fetchFeed, fetchGitHubTrending } from '../services/feedParser';
 import { summarizeWithFallback } from '../services/aiAdapter';
 import { requestPermission } from '../services/notifications';
 import { startScheduler, fetchAllSubscriptions, runScheduledPush } from '../services/scheduler';
+import TransformBar from '../components/TransformBar';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -67,6 +70,8 @@ export default function App() {
   const [addForm] = Form.useForm();
   const [modelForm] = Form.useForm();
   const [summarizing, setSummarizing] = useState(false);
+  const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
+  const [currentSummary, setCurrentSummary] = useState<{ content: string; keywords: string[]; articleLink: string } | null>(null);
 
   const loadData = useCallback(async () => {
     const [subs, mods, sets, hist] = await Promise.all([
@@ -196,6 +201,12 @@ export default function App() {
       );
       if (result.success) {
         message.success(`摘要生成成功 (${result.tokensUsed} tokens)`);
+        setCurrentSummary({
+          content: result.summary,
+          keywords: result.keywords,
+          articleLink: article.link,
+        });
+        setSummaryDrawerOpen(true);
       } else {
         message.error(result.error || '摘要生成失败');
       }
@@ -591,6 +602,25 @@ export default function App() {
           {activeMenu === 'history' && renderHistory()}
         </Content>
       </Layout>
+
+      {/* Summary Transform Drawer */}
+      <Drawer
+        title="摘要内容变换"
+        placement="right"
+        width={600}
+        open={summaryDrawerOpen}
+        onClose={() => setSummaryDrawerOpen(false)}
+        closeIcon={<CloseOutlined />}
+        styles={{ body: { padding: 16 } }}
+      >
+        {currentSummary && (
+          <TransformBar
+            summary={currentSummary.content}
+            keywords={currentSummary.keywords}
+            originalArticleLink={currentSummary.articleLink}
+          />
+        )}
+      </Drawer>
     </Layout>
   );
 }
