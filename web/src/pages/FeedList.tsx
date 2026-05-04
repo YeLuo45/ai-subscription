@@ -36,6 +36,7 @@ import {
   BookOutlined,
   FolderOutlined,
   FolderOpenOutlined,
+  StarOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings } from '../types';
@@ -67,12 +68,13 @@ import InstallPrompt from '../components/InstallPrompt';
 import RealtimeStatus from '../components/RealtimeStatus';
 import SummaryHistory from './SummaryHistory';
 import ReadLater from './ReadLater';
+import Recommendations from './Recommendations';
 import NoteEditor from '../components/NoteEditor';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations';
 
 export default function App() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
@@ -150,6 +152,7 @@ export default function App() {
     { key: 'history', icon: <HistoryOutlined />, label: '推送历史' },
     { key: 'summaries', icon: <FileTextOutlined />, label: '摘要历史' },
     { key: 'readlater', label: <span>稍后读 {readLaterCount > 0 ? <Badge count={readLaterCount} size="small" /> : null}</span>, icon: <BookOutlined /> },
+    { key: 'recommendations', icon: <StarOutlined />, label: '推荐' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -873,6 +876,7 @@ export default function App() {
           {activeMenu === 'history' && renderHistory()}
           {activeMenu === 'summaries' && <SummaryHistory />}
           {activeMenu === 'readlater' && <ReadLater />}
+          {activeMenu === 'recommendations' && <Recommendations />}
         </Content>
       </Layout>
 
