@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import {
   Layout,
   Menu,
@@ -73,6 +73,7 @@ import ReadLater from './ReadLater';
 import Recommendations from './Recommendations';
 import NoteEditor from '../components/NoteEditor';
 import SearchPage from './Search';
+import { I18nContext } from '../i18n';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -80,6 +81,7 @@ const { Title, Text } = Typography;
 type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search';
 
 export default function App() {
+  const { t, locale, setLocale } = useContext(I18nContext);
   const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [groups, setGroups] = useState<SubscriptionGroup[]>([]);
@@ -148,15 +150,15 @@ export default function App() {
   }, [activeMenu]);
 
   const menuItems: MenuProps['items'] = [
-    { key: 'feeds', icon: <GlobalOutlined />, label: '订阅源' },
-    { key: 'articles', icon: <EyeOutlined />, label: '文章' },
-    { key: 'models', icon: <RobotOutlined />, label: 'AI模型' },
-    { key: 'settings', icon: <SettingOutlined />, label: '推送设置' },
-    { key: 'history', icon: <HistoryOutlined />, label: '推送历史' },
-    { key: 'summaries', icon: <FileTextOutlined />, label: '摘要历史' },
-    { key: 'readlater', label: <span>稍后读 {readLaterCount > 0 ? <Badge count={readLaterCount} size="small" /> : null}</span>, icon: <BookOutlined /> },
-    { key: 'recommendations', icon: <StarOutlined />, label: '推荐' },
-    { key: 'search', icon: <SearchOutlined />, label: '搜索' },
+    { key: 'feeds', icon: <GlobalOutlined />, label: t('sidebar.feeds') },
+    { key: 'articles', icon: <EyeOutlined />, label: t('sidebar.articles') },
+    { key: 'models', icon: <RobotOutlined />, label: t('sidebar.models') },
+    { key: 'settings', icon: <SettingOutlined />, label: t('sidebar.settings') },
+    { key: 'history', icon: <HistoryOutlined />, label: t('sidebar.history') },
+    { key: 'summaries', icon: <FileTextOutlined />, label: t('sidebar.summaryHistory') },
+    { key: 'readlater', label: <span>{t('sidebar.readLater')} {readLaterCount > 0 ? <Badge count={readLaterCount} size="small" /> : null}</span>, icon: <BookOutlined /> },
+    { key: 'recommendations', icon: <StarOutlined />, label: t('sidebar.recommendations') },
+    { key: 'search', icon: <SearchOutlined />, label: t('sidebar.search') },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -308,6 +310,7 @@ export default function App() {
       defaultFetchInterval: Number(values.defaultFetchInterval) || 60,
       schedulerEnabled: Boolean(values.schedulerEnabled),
       themeMode: values.themeMode as ThemeMode,
+      locale: values.locale as 'zh' | 'en',
     };
     await saveSettings(updated);
     setSettings(updated);
@@ -742,6 +745,7 @@ export default function App() {
           defaultFetchInterval: settings.defaultFetchInterval || 60,
           schedulerEnabled: settings.schedulerEnabled !== false,
           themeMode: settings.themeMode || 'light',
+          locale: settings.locale || 'zh',
         }}
         onFinish={handleSaveSettings}
       >
@@ -815,6 +819,17 @@ export default function App() {
                 document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
               }}
             />
+          </Form.Item>
+          <Form.Item name="locale" label={t('settings.language')}>
+            <Select
+              value={settings.locale || 'zh'}
+              onChange={(val) => {
+                setLocale(val);
+              }}
+            >
+              <Select.Option value="zh">中文</Select.Option>
+              <Select.Option value="en">English</Select.Option>
+            </Select>
           </Form.Item>
           <Form.Item name="defaultFetchInterval" label="全局刷新间隔">
             <Select options={[

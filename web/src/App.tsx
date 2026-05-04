@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ConfigProvider, theme } from 'antd';
 import FeedList from './pages/FeedList';
 import { getSettings } from './services/storage';
+import { I18nProvider } from './i18n';
 import type { ThemeMode } from './types';
 import './styles/theme.css';
 import './App.css';
@@ -27,13 +28,15 @@ function App() {
   (window as any).__applyTheme = applyTheme;
 
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-      }}
-    >
-      <FeedList />
-    </ConfigProvider>
+    <I18nProvider>
+      <ConfigProvider
+        theme={{
+          algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        }}
+      >
+        <FeedList />
+      </ConfigProvider>
+    </I18nProvider>
   );
 }
 

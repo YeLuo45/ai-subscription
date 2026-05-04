@@ -120,6 +120,7 @@ export interface AppSettings {
   defaultFetchInterval: number;  // global default in minutes
   schedulerEnabled: boolean;
   themeMode: ThemeMode;
+  locale: 'zh' | 'en';
 }
 
 export const PRESET_SUBSCRIPTIONS: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'lastFetchedAt'>[] = [
