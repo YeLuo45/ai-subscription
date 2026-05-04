@@ -1,10 +1,10 @@
 /**
  * Content Transform API Endpoint
- * Transforms summary content into different formats: tweet, newsletter, mindmap
+ * Transforms summary content into different formats: tweet, newsletter, mindmap, slides
  * 
  * POST /api/transform
- * Body: { summary: string, format: 'tweet' | 'newsletter' | 'mindmap', keywords: string[] }
- * Response: { content: string }
+ * Body: { summary: string, format: 'tweet' | 'newsletter' | 'mindmap' | 'slides', keywords: string[] }
+ * Response: { content: string } or { slides: [{ title, content }] } for slides
  */
 
 import { callLLM } from '../../../shared/lib/ai/llm';
@@ -57,6 +57,26 @@ ${summary}`;
 
 内容：
 ${summary}`;
+  } else if (format === 'slides') {
+    return `将以下内容拆分为5~10张幻灯片，每张幻灯片包含标题和1~2句话的要点内容。
+
+要求：
+1. 每张幻灯片有标题和内容
+2. 内容简洁，每张1~2句话
+3. 总共5~10张幻灯片
+4. 结构清晰，逻辑连贯
+5. 直接返回JSON格式，不要有其他文字：
+{
+  "slides": [
+    { "title": "标题1", "content": "内容1" },
+    { "title": "标题2", "content": "内容2" }
+  ]
+}
+
+关键词：${keywordStr}
+
+内容：
+${summary}`;
   }
   
   return summary;
@@ -92,7 +112,7 @@ function resolveModelFromId(modelId?: string): { provider: string; modelName: st
 export async function POST(req: Request): Promise<Response> {
   let body: {
     summary?: string;
-    format?: 'tweet' | 'newsletter' | 'mindmap';
+    format?: 'tweet' | 'newsletter' | 'mindmap' | 'slides';
     keywords?: string[];
     modelId?: string;
     apiKey?: string;
@@ -116,8 +136,8 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  if (!['tweet', 'newsletter', 'mindmap'].includes(format)) {
-    return new Response(JSON.stringify({ error: 'Invalid format. Must be tweet, newsletter, or mindmap' }), {
+  if (!['tweet', 'newsletter', 'mindmap', 'slides'].includes(format)) {
+    return new Response(JSON.stringify({ error: 'Invalid format. Must be tweet, newsletter, mindmap, or slides' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -141,6 +161,40 @@ export async function POST(req: Request): Promise<Response> {
       },
       'transform'
     );
+
+    // For slides format, parse JSON response
+    if (format === 'slides') {
+      try {
+        // Try to parse the response as JSON
+        let slidesData = JSON.parse(result.text);
+        
+        // Handle case where response might be wrapped in markdown code block
+        if (typeof slidesData === 'string') {
+          const jsonMatch = slidesData.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (jsonMatch) {
+            slidesData = JSON.parse(jsonMatch[1]);
+          }
+        }
+        
+        // Handle nested slides object
+        if (slidesData.slides) {
+          slidesData = slidesData.slides;
+        }
+        
+        return new Response(JSON.stringify({ slides: slidesData }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch (parseError) {
+        return new Response(JSON.stringify({ 
+          error: 'Failed to parse slides response',
+          raw: result.text 
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     return new Response(JSON.stringify({ content: result.text }), {
       status: 200,

@@ -1,16 +1,19 @@
 /**
  * TransformBar Component
  * Provides format transformation buttons for summary content
- * Transforms: 摘要 -> 推文 / Newsletter / 思维导图
+ * Transforms: 摘要 -> 推文 / Newsletter / 思维导图 / 幻灯片
  */
 
-import { useState } from 'react';
-import { Button, Space, Typography, Card, Spin, message } from 'antd';
-import { FileTextOutlined, TwitterOutlined, MailOutlined, MindOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
+import { Button, Space, Typography, Card, Spin, message, Dropdown } from 'antd';
+import { FileTextOutlined, TwitterOutlined, MailOutlined, MindOutlined, ExportOutlined, CaretDownOutlined } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
+import MindMapViewer from './MindMapViewer';
+import SlidesViewer from './SlidesViewer';
 
 const { Text } = Typography;
 
-export type TransformFormat = 'summary' | 'tweet' | 'newsletter' | 'mindmap';
+export type TransformFormat = 'summary' | 'tweet' | 'newsletter' | 'mindmap' | 'slides';
 
 interface TransformBarProps {
   summary: string;
@@ -20,8 +23,14 @@ interface TransformBarProps {
 
 interface TransformResult {
   content: string;
+  slides?: { title: string; content: string }[];
   format: TransformFormat;
 }
+
+// Check if content looks like a markdown tree (for mindmap)
+const isMarkdownTree = (content: string): boolean => {
+  return content.includes('# ') && (content.includes('## ') || content.includes('### '));
+};
 
 export default function TransformBar({ summary, keywords, originalArticleLink }: TransformBarProps) {
   const [activeFormat, setActiveFormat] = useState<TransformFormat>('summary');
@@ -33,6 +42,7 @@ export default function TransformBar({ summary, keywords, originalArticleLink }:
     { key: 'tweet', label: '推文', icon: <TwitterOutlined /> },
     { key: 'newsletter', label: 'Newsletter', icon: <MailOutlined /> },
     { key: 'mindmap', label: '思维导图', icon: <MindOutlined /> },
+    { key: 'slides', label: '幻灯片', icon: <span style={{ fontSize: 12 }}>◫</span> },
   ];
 
   const handleTransform = async (format: TransformFormat) => {
@@ -68,13 +78,13 @@ export default function TransformBar({ summary, keywords, originalArticleLink }:
 
       const data = await response.json();
       
-      let content = data.content;
       // For tweet format, append source link if provided
-      if (format === 'tweet' && originalArticleLink) {
+      let content = data.content;
+      if (format === 'tweet' && originalArticleLink && content) {
         content = content.replace(/\[来源链接\]$/, `[来源链接](${originalArticleLink})`);
       }
 
-      setTransformedContent({ content, format });
+      setTransformedContent({ content, slides: data.slides, format });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       message.error(`转换失败: ${errorMsg}`);
@@ -84,6 +94,89 @@ export default function TransformBar({ summary, keywords, originalArticleLink }:
       setLoading(false);
     }
   };
+
+  // Export handlers
+  const handleExportPDF = () => {
+    window.print();
+  };
+
+  const handleExportPNG = () => {
+    if (activeFormat === 'mindmap') {
+      const svg = document.querySelector('.mindmap-svg') as SVGElement;
+      if (svg) {
+        const serializer = new XMLSerializer();
+        const svgStr = serializer.serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = () => {
+          canvas.width = svg.clientWidth * 2;
+          canvas.height = svg.clientHeight * 2;
+          ctx?.scale(2, 2);
+          ctx?.drawImage(img, 0, 0);
+          canvas.toBlob(blob => {
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.create.createElement('a');
+            a.href = url;
+            a.download = 'mindmap.png';
+            a.click();
+            URL.revokeObjectURL(url);
+          });
+        };
+        
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+      }
+    }
+  };
+
+  const exportMenuItems: MenuProps['items'] = [
+    {
+      key: 'pdf',
+      label: '导出 PDF',
+      icon: <ExportOutlined />,
+      onClick: handleExportPDF,
+    },
+  ];
+
+  // Add PNG export for mindmap
+  if (activeFormat === 'mindmap' && transformedContent?.content) {
+    exportMenuItems.push({
+      key: 'png',
+      label: '导出 PNG',
+      icon: <ExportOutlined />,
+      onClick: () => {
+        // Find the SVG element inside MindMapViewer
+        const svg = document.querySelector('svg');
+        if (!svg) return;
+        
+        const serializer = new XMLSerializer();
+        const svgStr = serializer.serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = () => {
+          canvas.width = svg.clientWidth * 2;
+          canvas.height = svg.clientHeight * 2;
+          ctx?.scale(2, 2);
+          ctx?.drawImage(img, 0, 0);
+          canvas.toBlob(blob => {
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mindmap.png';
+            a.click();
+            URL.revokeObjectURL(url);
+          });
+        };
+        
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+      },
+    });
+  }
 
   const renderContent = () => {
     if (activeFormat === 'summary') {
@@ -124,8 +217,29 @@ export default function TransformBar({ summary, keywords, originalArticleLink }:
     }
 
     if (transformedContent && transformedContent.format === activeFormat) {
+      // Render MindMapViewer for mindmap format
+      if (activeFormat === 'mindmap' && transformedContent.content && isMarkdownTree(transformedContent.content)) {
+        return <MindMapViewer content={transformedContent.content} />;
+      }
+
+      // Render SlidesViewer for slides format
+      if (activeFormat === 'slides' && transformedContent.slides) {
+        return <SlidesViewer slides={transformedContent.slides} />;
+      }
+
+      // Default text rendering
       return (
-        <Card size="small" style={{ marginTop: 16 }}>
+        <Card 
+          size="small" 
+          style={{ marginTop: 16 }}
+          extra={
+            <Dropdown menu={{ items: exportMenuItems }} trigger={['click']}>
+              <Button size="small" icon={<ExportOutlined />} type="text">
+                导出 <CaretDownOutlined />
+              </Button>
+            </Dropdown>
+          }
+        >
           <pre style={{ 
             whiteSpace: 'pre-wrap', 
             wordBreak: 'break-word',

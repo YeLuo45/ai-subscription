@@ -1,0 +1,43 @@
+/**
+ * Print Export Styles
+ * CSS styles for PDF export via window.print()
+ */
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+  
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  
+  .slide-container {
+    page-break-after: always;
+  }
+  
+  .mindmap-export {
+    width: 100%;
+    height: auto;
+  }
+  
+  /* Hide navigation and UI elements when printing */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Ensure clean print output */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
