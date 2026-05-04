@@ -53,6 +53,8 @@ import { startScheduler, fetchAllSubscriptions, runScheduledPush } from '../serv
 import { sendSubscriptionEmail } from '../services/email';
 import TransformBar from '../components/TransformBar';
 import ImportExportPanel from '../components/ImportExportPanel';
+import OfflineBanner from '../components/OfflineBanner';
+import InstallPrompt from '../components/InstallPrompt';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -322,6 +324,7 @@ export default function App() {
 
   const renderFeeds = () => (
     <div>
+      <InstallPrompt />
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <Button icon={<PlusOutlined />} type="primary" onClick={() => setAddModalOpen(true)}>添加订阅源</Button>
         <Button icon={<ReloadOutlined />} onClick={handleRefreshAll} loading={loading}>刷新全部</Button>
@@ -689,6 +692,7 @@ export default function App() {
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ background: '#001529', padding: '0 24px', display: 'flex', alignItems: 'center' }}>
         <Title level={4} style={{ color: 'white', margin: 0 }}>🤖 AI订阅聚合</Title>
+        <OfflineBanner />
       </Header>
       <Layout>
         <Sider width={200} style={{ background: '#fff' }}>

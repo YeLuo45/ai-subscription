@@ -1,0 +1,18 @@
+{
+  "name": "AI订阅助手",
+  "short_name": "AI订阅",
+  "description": "AI驱动的RSS订阅与摘要生成",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1890ff",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
