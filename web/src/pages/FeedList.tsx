@@ -59,6 +59,7 @@ import TransformBar from '../components/TransformBar';
 import ImportExportPanel from '../components/ImportExportPanel';
 import OfflineBanner from '../components/OfflineBanner';
 import InstallPrompt from '../components/InstallPrompt';
+import RealtimeStatus from '../components/RealtimeStatus';
 import SummaryHistory from './SummaryHistory';
 import ReadLater from './ReadLater';
 
@@ -717,6 +718,7 @@ export default function App() {
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ background: '#001529', padding: '0 24px', display: 'flex', alignItems: 'center' }}>
         <Title level={4} style={{ color: 'white', margin: 0 }}>🤖 AI订阅聚合</Title>
+        <span style={{ marginLeft: 12 }}><RealtimeStatus /></span>
         <OfflineBanner />
       </Header>
       <Layout>

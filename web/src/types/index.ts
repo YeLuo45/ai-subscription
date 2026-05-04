@@ -65,6 +65,7 @@ export interface PushHistory {
   pushedAt: string;
   status: 'success' | 'failure';
   errorMessage?: string;
+  source?: 'scheduled' | 'realtime';
 }
 
 export interface PushSettings {
