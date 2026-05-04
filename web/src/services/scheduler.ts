@@ -60,10 +60,27 @@ async function fetchSubscription(sub: Subscription): Promise<number> {
 
 export async function fetchAllSubscriptions(): Promise<void> {
   const subs = await getSubscriptions();
+  const settings = await getSettings();
   const enabledSubs = subs.filter((s) => s.enabled);
   let totalNew = 0;
 
   for (const sub of enabledSubs) {
+    const interval = sub.useCustomInterval
+      ? sub.fetchIntervalMinutes
+      : (settings.defaultFetchInterval || 60);
+
+    // Check if enough time has passed since last fetch
+    if (sub.lastFetchedAt) {
+      const lastFetch = new Date(sub.lastFetchedAt).getTime();
+      const now = Date.now();
+      const elapsed = now - lastFetch;
+      const intervalMs = interval * 60 * 1000;
+      if (elapsed < intervalMs) {
+        // Skip this subscription, not enough time has passed
+        continue;
+      }
+    }
+
     const newCount = await fetchSubscription(sub);
     totalNew += newCount;
   }

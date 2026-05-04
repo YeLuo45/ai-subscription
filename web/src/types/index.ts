@@ -21,6 +21,7 @@ export interface Subscription {
   createdAt: string;
   updatedAt: string;
   groupId?: string;  // which group this subscription belongs to
+  useCustomInterval: boolean;  // if true, use fetchIntervalMinutes; otherwise use global setting
 }
 
 export interface AIModel {
@@ -114,6 +115,8 @@ export interface AppSettings {
   summaryLength: 'short' | 'medium' | 'long';
   webhookUrl?: string;
   webhookHeaders?: Record<string, string>;
+  defaultFetchInterval: number;  // global default in minutes
+  schedulerEnabled: boolean;
 }
 
 export const PRESET_SUBSCRIPTIONS: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'lastFetchedAt'>[] = [

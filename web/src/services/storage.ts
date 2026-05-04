@@ -87,11 +87,20 @@ export async function getSubscription(id: string): Promise<Subscription | undefi
 export async function saveSubscription(sub: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>): Promise<Subscription> {
   const store = await getStore(STORES.subscriptions, 'readwrite');
   const now = new Date().toISOString();
-  const full: Subscription = { ...sub, id: generateId(), createdAt: now, updatedAt: now };
+  const full: Subscription = {
+    ...sub,
+    id: generateId(),
+    createdAt: now,
+    updatedAt: now,
+    enabled: sub.enabled ?? true,
+    aiSummaryEnabled: sub.aiSummaryEnabled ?? true,
+    fetchIntervalMinutes: sub.fetchIntervalMinutes ?? 60,
+    useCustomInterval: sub.useCustomInterval ?? false,
+  };
   return new Promise((resolve, reject) => {
     const req = store.add(full);
     req.onsuccess = () => resolve(full);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => reject(request.error);
   });
 }
 
@@ -366,6 +375,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   defaultModelId: '',
   summaryLength: 'medium',
+  defaultFetchInterval: 60,
+  schedulerEnabled: true,
 };
 
 export async function getSettings(): Promise<AppSettings> {

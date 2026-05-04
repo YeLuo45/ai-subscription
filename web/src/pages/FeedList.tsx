@@ -20,6 +20,7 @@ import {
   Spin,
   Drawer,
   Badge,
+  Checkbox,
 } from 'antd';
 import {
   SettingOutlined,
@@ -170,6 +171,7 @@ export default function App() {
         enabled: true,
         aiSummaryEnabled: true,
         fetchIntervalMinutes: Number(values.fetchIntervalMinutes) || 60,
+        useCustomInterval: Boolean(values.useCustomInterval),
       });
       setSubscriptions((prev) => [...prev, sub]);
       setAddModalOpen(false);
@@ -190,6 +192,7 @@ export default function App() {
         type: values.type as 'rss' | 'atom' | 'api',
         category: (values.category as string) || 'Custom',
         fetchIntervalMinutes: Number(values.fetchIntervalMinutes) || 60,
+        useCustomInterval: Boolean(values.useCustomInterval),
       });
       setSubscriptions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
       setEditSub(null);
@@ -299,6 +302,8 @@ export default function App() {
       webhookHeaders: typeof values.webhookHeaders === 'string' 
         ? JSON.parse(values.webhookHeaders as string) 
         : (values.webhookHeaders as Record<string, string>),
+      defaultFetchInterval: Number(values.defaultFetchInterval) || 60,
+      schedulerEnabled: Boolean(values.schedulerEnabled),
     };
     await saveSettings(updated);
     setSettings(updated);
@@ -529,8 +534,29 @@ export default function App() {
           <Form.Item name="category" label="分类" initialValue="Custom">
             <Input placeholder="例如：科技、AI、开发" />
           </Form.Item>
-          <Form.Item name="fetchIntervalMinutes" label="抓取间隔(分钟)" initialValue={60}>
-            <Input type="number" min={5} />
+          <Form.Item label="刷新间隔">
+            <Space direction="vertical">
+              <Form.Item name="useCustomInterval" valuePropName="checked" noStyle>
+                <Checkbox>使用自定义间隔</Checkbox>
+              </Form.Item>
+              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.useCustomInterval !== curr.useCustomInterval}>
+                {({ getFieldValue }) =>
+                  getFieldValue('useCustomInterval') ? (
+                    <Form.Item name="fetchIntervalMinutes" initialValue={60}>
+                      <Select style={{ width: 200 }}>
+                        <Select.Option value={15}>15 分钟</Select.Option>
+                        <Select.Option value={30}>30 分钟</Select.Option>
+                        <Select.Option value={60}>1 小时</Select.Option>
+                        <Select.Option value={120}>2 小时</Select.Option>
+                        <Select.Option value={360}>6 小时</Select.Option>
+                        <Select.Option value={720}>12 小时</Select.Option>
+                        <Select.Option value={1440}>1 天</Select.Option>
+                      </Select>
+                    </Form.Item>
+                  ) : null
+                }
+              </Form.Item>
+            </Space>
           </Form.Item>
           <Form.Item>
             <Space>
@@ -558,8 +584,29 @@ export default function App() {
           <Form.Item name="category" label="分类">
             <Input />
           </Form.Item>
-          <Form.Item name="fetchIntervalMinutes" label="抓取间隔(分钟)">
-            <Input type="number" min={5} />
+          <Form.Item label="刷新间隔">
+            <Space direction="vertical">
+              <Form.Item name="useCustomInterval" valuePropName="checked" noStyle>
+                <Checkbox>使用自定义间隔</Checkbox>
+              </Form.Item>
+              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.useCustomInterval !== curr.useCustomInterval}>
+                {({ getFieldValue }) =>
+                  getFieldValue('useCustomInterval') ? (
+                    <Form.Item name="fetchIntervalMinutes">
+                      <Select style={{ width: 200 }}>
+                        <Select.Option value={15}>15 分钟</Select.Option>
+                        <Select.Option value={30}>30 分钟</Select.Option>
+                        <Select.Option value={60}>1 小时</Select.Option>
+                        <Select.Option value={120}>2 小时</Select.Option>
+                        <Select.Option value={360}>6 小时</Select.Option>
+                        <Select.Option value={720}>12 小时</Select.Option>
+                        <Select.Option value={1440}>1 天</Select.Option>
+                      </Select>
+                    </Form.Item>
+                  ) : null
+                }
+              </Form.Item>
+            </Space>
           </Form.Item>
           <Form.Item><Button type="primary" htmlType="submit">保存</Button></Form.Item>
         </Form>
@@ -688,6 +735,8 @@ export default function App() {
           summaryLength: settings.summaryLength,
           webhookUrl: settings.webhookUrl || '',
           webhookHeaders: settings.webhookHeaders ? JSON.stringify(settings.webhookHeaders, null, 2) : '{}',
+          defaultFetchInterval: settings.defaultFetchInterval || 60,
+          schedulerEnabled: settings.schedulerEnabled !== false,
         }}
         onFinish={handleSaveSettings}
       >
@@ -742,6 +791,24 @@ export default function App() {
             <Button onClick={handleTestNotification}>测试通知</Button>
             <Button onClick={handleTestEmail}>测试邮件</Button>
           </Space>
+        </Card>
+
+        <Card title="刷新设置" size="small" style={{ marginTop: 16 }}>
+          <Form.Item name="schedulerEnabled" valuePropName="checked" label="启用定时刷新">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="defaultFetchInterval" label="全局刷新间隔">
+            <Select options={[
+              { value: 15, label: '15 分钟' },
+              { value: 30, label: '30 分钟' },
+              { value: 60, label: '1 小时' },
+              { value: 120, label: '2 小时' },
+              { value: 360, label: '6 小时' },
+              { value: 720, label: '12 小时' },
+              { value: 1440, label: '1 天' },
+            ]} />
+          </Form.Item>
+          <Text type="secondary" style={{ fontSize: 12 }}>影响所有未使用自定义间隔的订阅源</Text>
         </Card>
 
         <Card title="邮件设置" size="small" style={{ marginTop: 16 }}>
