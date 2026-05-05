@@ -5,10 +5,11 @@ import React, { useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, Select, Space, Tag,
   Popconfirm, Card, Row, Col, message, Typography, Badge,
-  Tooltip,
+  Tooltip, Collapse,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { Subscription, PRESET_SUBSCRIPTIONS } from '../types';
+import { FeedDiscoveryPanel } from '../components/FeedDiscoveryPanel';
 
 const { Title } = Typography;
 
@@ -40,6 +41,7 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
 
   const handleAdd = () => {
     form.validateFields().then(values => {
@@ -176,11 +178,19 @@ export const SubscriptionsPage: React.FC<SubscriptionsPageProps> = ({
           <Button onClick={onFetchAll} loading={loading}>
             全部抓取
           </Button>
+          <Button icon={<SearchOutlined />} onClick={() => setDiscoveryOpen(!discoveryOpen)}>
+            自动发现
+          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
             添加订阅源
           </Button>
         </Space>
       </div>
+
+      {/* 自动发现面板 */}
+      {discoveryOpen && (
+        <FeedDiscoveryPanel onAdd={onAdd} />
+      )}
 
       {/* 预设订阅源 */}
       <Title level={5}>预设订阅源</Title>
