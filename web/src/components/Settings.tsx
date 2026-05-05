@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert } from 'antd';
-import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select } from 'antd';
+import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined } from '@ant-design/icons';
 import { TagManager } from './TagManager';
+import { TranslationSettings } from './TranslationSettings';
 import * as syncService from '../services/syncService';
 
 const { TabPane } = Tabs;
@@ -21,6 +22,9 @@ export const Settings: React.FC = () => {
         </TabPane>
         <TabPane tab={<span><GlobalOutlined /> 标签管理</span>} key="tags">
           <TagManager />
+        </TabPane>
+        <TabPane tab={<span><TranslationOutlined /> 翻译设置</span>} key="translation">
+          <TranslationSettings />
         </TabPane>
         <TabPane tab={<span><CloudSyncOutlined /> 同步设置</span>} key="sync">
           <SyncSettings />

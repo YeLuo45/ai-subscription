@@ -9,6 +9,9 @@ import { PlusOutlined, ReloadOutlined, CloudSyncOutlined } from '@ant-design/ico
 import { TagFilterSidebar } from './TagFilterSidebar';
 import { TagBadge } from './TagBadge';
 import { ArticleSyncButtons } from './ArticleSyncButtons';
+import { LanguageBadge } from './LanguageBadge';
+import { ArticleDetail } from './ArticleDetail';
+import { detectLanguage, type Language } from '../lib/languageDetect';
 import * as tagService from '../services/tagService';
 import * as syncService from '../services/syncService';
 import type { Tag } from '../types/tag';
@@ -22,6 +25,11 @@ interface Article {
   link: string;
   pubDate: string;
   feedId: string;
+}
+
+// Helper to detect language from article
+function getArticleLanguage(article: Article): Language {
+  return detectLanguage(article.title + ' ' + article.description);
 }
 
 interface Feed {
@@ -76,6 +84,8 @@ export const FeedList: React.FC = () => {
   const [form] = Form.useForm();
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: number; failed: number } | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [articleDetailOpen, setArticleDetailOpen] = useState(false);
 
   // Load saved filter state
   useEffect(() => {
@@ -181,6 +191,11 @@ export const FeedList: React.FC = () => {
     return articleTags[articleId] || [];
   };
 
+  const handleOpenArticleDetail = (article: Article) => {
+    setSelectedArticle(article);
+    setArticleDetailOpen(true);
+  };
+
   const handleSyncToReadwise = async () => {
     const token = await syncService.getReadwiseConfig();
     if (!token) {
@@ -273,7 +288,17 @@ export const FeedList: React.FC = () => {
                   }
                 >
                   <List.Item.Meta
-                    title={<a href={article.link} target="_blank" rel="noopener noreferrer">{article.title}</a>}
+                    title={
+                      <Space>
+                        <a 
+                          onClick={() => handleOpenArticleDetail(article)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {article.title}
+                        </a>
+                        <LanguageBadge lang={getArticleLanguage(article)} size="small" />
+                      </Space>
+                    }
                     description={
                       <Space direction="vertical" size="small" style={{ width: '100%' }}>
                         <Text type="secondary">{article.pubDate}</Text>
@@ -330,6 +355,16 @@ export const FeedList: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Article Detail Modal with Translation */}
+      <ArticleDetail
+        article={selectedArticle}
+        open={articleDetailOpen}
+        onClose={() => {
+          setArticleDetailOpen(false);
+          setSelectedArticle(null);
+        }}
+      />
     </div>
   );
 };
