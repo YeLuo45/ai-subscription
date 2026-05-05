@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select } from 'antd';
-import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined } from '@ant-design/icons';
+import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select, Empty } from 'antd';
+import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined, ApiOutlined } from '@ant-design/icons';
 import { TagManager } from './TagManager';
 import { TranslationSettings } from './TranslationSettings';
 import { PublicListEditor } from './PublicListEditor';
@@ -13,6 +13,7 @@ import { RSSGenerator } from './RSSGenerator';
 import { SubscriberList } from './SubscriberList';
 import { EmailTemplateEditor } from './EmailTemplateEditor';
 import { EmailSender } from './EmailSender';
+import { DeveloperPanel } from './DeveloperPanel';
 import * as syncService from '../services/syncService';
 import type { PublicList, FeedInfo } from '../types/publicList';
 import * as publicListDB from '../db/publicListDB';
@@ -41,6 +42,9 @@ export const Settings: React.FC = () => {
         </TabPane>
         <TabPane tab={<span><MailOutlined /> 邮件订阅</span>} key="email">
           <EmailSubscriptionSettings />
+        </TabPane>
+        <TabPane tab={<span><ApiOutlined /> 开发者</span>} key="developer">
+          <DeveloperPanel />
         </TabPane>
       </Tabs>
     </div>
