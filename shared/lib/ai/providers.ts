@@ -3,7 +3,7 @@
  * Central registry of all supported AI providers and their model configurations
  */
 
-import type { ProviderConfig, ProviderId } from './types/provider';
+import type { ProviderConfig, ProviderId, ProviderType } from './types/provider';
 
 // ============================================================
 // Provider Registry
@@ -166,7 +166,7 @@ const MODEL_PREFIX_MAP: Record<string, ProviderId> = {
  * Resolve provider ID from a model string
  * Handles formats like "minimax/MiniMax-Text-01" or just "gpt-4o-mini"
  */
-function resolveProviderType(model: string): ProviderId {
+export function resolveProviderType(model: string): ProviderId {
   const colonIdx = model.indexOf('/');
   const candidate = colonIdx > 0 ? model.slice(0, colonIdx) : model;
 
@@ -190,7 +190,7 @@ function resolveProviderType(model: string): ProviderId {
  * Resolve the actual model ID from a full model string
  * "minimax/MiniMax-Text-01" -> "MiniMax-Text-01"
  */
-function resolveModelId(model: string): string {
+export function resolveModelId(model: string): string {
   const colonIdx = model.indexOf('/');
   return colonIdx > 0 ? model.slice(colonIdx + 1) : model;
 }
@@ -198,9 +198,6 @@ function resolveModelId(model: string): string {
 /**
  * Get provider config by ID
  */
-function getProviderConfig(providerId: ProviderId): ProviderConfig | undefined {
+export function getProviderConfig(providerId: ProviderId): ProviderConfig | undefined {
   return PROVIDERS[providerId];
 }
-
-// Export functions
-export { resolveProviderType, resolveModelId, getProviderConfig };

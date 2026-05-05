@@ -1,7 +1,9 @@
 /**
- * Thinking Context - Request-scoped context for LLM tracing
- * Browser-compatible implementation using globalThis
+ * Thinking Context - AsyncLocalStorage for request tracing
+ * Exposes context via globalThis for Vite browser compatibility
  */
+
+import { AsyncLocalStorage } from 'async_hooks';
 
 export interface ThinkingContext {
   source: string;
@@ -9,8 +11,8 @@ export interface ThinkingContext {
   startTime?: number;
 }
 
-// Global storage for thinking context (browser-compatible)
-const CONTEXT_STACK: ThinkingContext[] = [];
+// AsyncLocalStorage instance for request-scoped context
+const thinkingStorage = new AsyncLocalStorage<ThinkingContext>();
 
 // ============================================================
 // Context Management
@@ -20,7 +22,7 @@ const CONTEXT_STACK: ThinkingContext[] = [];
  * Get current thinking context
  */
 export function getThinkingContext(): ThinkingContext | undefined {
-  return CONTEXT_STACK[CONTEXT_STACK.length - 1];
+  return thinkingStorage.getStore();
 }
 
 /**
@@ -30,12 +32,7 @@ export function runWithThinkingContext<T>(
   context: ThinkingContext,
   fn: () => T
 ): T {
-  CONTEXT_STACK.push(context);
-  try {
-    return fn();
-  } finally {
-    CONTEXT_STACK.pop();
-  }
+  return thinkingStorage.run(context, fn);
 }
 
 /**
@@ -47,4 +44,30 @@ export function createThinkingContext(source: string, traceId?: string): Thinkin
     traceId,
     startTime: Date.now(),
   };
+}
+
+// ============================================================
+// globalThis exposure for cross-module access
+// ============================================================
+
+// Declare globalThis augmentation
+declare global {
+  interface GlobalThis {
+    __THINKING_STORAGE__?: typeof thinkingStorage;
+    __THINKING_CONTEXT__?: ThinkingContext;
+  }
+}
+
+// Expose storage on globalThis for Vite/browser builds (avoids async_hooks direct import issues)
+if (typeof globalThis !== 'undefined') {
+  (globalThis as any).__THINKING_STORAGE__ = thinkingStorage;
+  (globalThis as any).__THINKING_CONTEXT__ = undefined;
+}
+
+/**
+ * Get global thinking storage (for use in environments where AsyncLocalStorage
+ * can't be directly imported)
+ */
+export function getGlobalThinkingStorage(): AsyncLocalStorage<ThinkingContext> | undefined {
+  return (globalThis as any).__THINKING_STORAGE__;
 }
