@@ -5,11 +5,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select } from 'antd';
-import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined } from '@ant-design/icons';
+import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined } from '@ant-design/icons';
 import { TagManager } from './TagManager';
 import { TranslationSettings } from './TranslationSettings';
 import { PublicListEditor } from './PublicListEditor';
 import { RSSGenerator } from './RSSGenerator';
+import { SubscriberList } from './SubscriberList';
+import { EmailTemplateEditor } from './EmailTemplateEditor';
+import { EmailSender } from './EmailSender';
 import * as syncService from '../services/syncService';
 import type { PublicList, FeedInfo } from '../types/publicList';
 import * as publicListDB from '../db/publicListDB';
@@ -35,6 +38,9 @@ export const Settings: React.FC = () => {
         </TabPane>
         <TabPane tab={<span><ShareAltOutlined /> 公开列表</span>} key="public">
           <PublicListsSettings />
+        </TabPane>
+        <TabPane tab={<span><MailOutlined /> 邮件订阅</span>} key="email">
+          <EmailSubscriptionSettings />
         </TabPane>
       </Tabs>
     </div>
@@ -264,6 +270,24 @@ const SyncSettings: React.FC = () => {
           <p>Instapaper 账户: <a href="https://www.instapaper.com" target="_blank" rel="noopener noreferrer">https://www.instapaper.com</a></p>
         </div>
       </Card>
+    </div>
+  );
+};
+
+const EmailSubscriptionSettings: React.FC = () => {
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <Tabs defaultActiveKey="subscribers" size="small">
+        <Tabs.TabPane tab="订阅者管理" key="subscribers">
+          <SubscriberList />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="模板编辑" key="templates">
+          <EmailTemplateEditor />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="发送邮件" key="sender">
+          <EmailSender />
+        </Tabs.TabPane>
+      </Tabs>
     </div>
   );
 };
