@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Space, Typography, Divider, Switch, message } from 'antd';
-import { GlobalOutlined, EditOutlined } from '@ant-design/icons';
+import { GlobalOutlined, EditOutlined, ApartmentOutlined } from '@ant-design/icons';
 import { LanguageBadge } from './LanguageBadge';
+import { KnowledgeGraphPanel } from './KnowledgeGraphPanel';
 import { useTranslation } from '../hooks/useTranslation';
 import { detectLanguage, type Language } from '../lib/languageDetect';
 
@@ -29,6 +30,7 @@ interface ArticleDetailProps {
 
 export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onClose }) => {
   const [showTranslation, setShowTranslation] = useState(false);
+  const [knowledgeGraphOpen, setKnowledgeGraphOpen] = useState(false);
   const { translating, translation, sourceLang, translate, clearTranslation } = useTranslation();
 
   // Reset state when article changes
@@ -36,6 +38,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onC
     if (!open) {
       clearTranslation();
       setShowTranslation(false);
+      setKnowledgeGraphOpen(false);
     }
   }, [open, clearTranslation]);
 
@@ -71,6 +74,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onC
   if (!article) return null;
 
   return (
+    <>
     <Modal
       title={
         <Space>
@@ -92,6 +96,12 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onC
             onClick={handleTranslate}
           >
             翻译
+          </Button>
+          <Button 
+            icon={<ApartmentOutlined />}
+            onClick={() => setKnowledgeGraphOpen(true)}
+          >
+            知识图谱
           </Button>
         </Space>
       }
@@ -151,6 +161,14 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onC
         )}
       </div>
     </Modal>
+
+    {/* Knowledge Graph Panel */}
+    <KnowledgeGraphPanel
+      article={article}
+      open={knowledgeGraphOpen}
+      onClose={() => setKnowledgeGraphOpen(false)}
+    />
+    </>
   );
 };
 
