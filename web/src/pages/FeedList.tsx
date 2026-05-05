@@ -103,6 +103,50 @@ export default function App() {
   const [noteArticleId, setNoteArticleId] = useState<string | null>(null);
   const [noteArticleTitle, setNoteArticleTitle] = useState<string>('');
 
+  useEffect(() => {
+    // Cmd+K: focus search
+    const handleCmdK = () => {
+      const searchInput = document.querySelector('.ant-layout-sider input') as HTMLInputElement;
+      searchInput?.focus();
+    };
+    // Cmd+N: open add subscription
+    const handleCmdN = () => setAddModalOpen(true);
+    // Cmd+Shift+T: toggle theme
+    const handleCmdShiftT = () => {
+      if (!settings) return;
+      const current = settings.themeMode;
+      const next = current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
+      handleSaveSettings({ ...settings, themeMode: next } as any);
+    };
+    // Escape: close modals
+    const handleEscape = () => {
+      setAddModalOpen(false);
+      setEditSub(null);
+      setSummaryDrawerOpen(false);
+      setNoteDrawerOpen(false);
+    };
+
+    function onKeyDown(e: KeyboardEvent) {
+      const parts: string[] = [];
+      if (e.metaKey || e.ctrlKey) parts.push('Cmd');
+      if (e.shiftKey) parts.push('Shift');
+      if (e.key !== 'Control' && e.key !== 'Meta' && e.key !== 'Shift') {
+        parts.push(e.key);
+      }
+      const combo = parts.join('+');
+
+      switch (combo) {
+        case 'Cmd+K': e.preventDefault(); handleCmdK(); break;
+        case 'Cmd+N': e.preventDefault(); handleCmdN(); break;
+        case 'Cmd+Shift+T': e.preventDefault(); handleCmdShiftT(); break;
+        case 'Escape': e.preventDefault(); handleEscape(); break;
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [settings]);
+
   const loadData = useCallback(async () => {
     const [subs, mods, sets, hist, gs] = await Promise.all([
       getSubscriptions(),
@@ -889,6 +933,22 @@ export default function App() {
 
         <Card title="数据管理" size="small" style={{ marginTop: 16 }}>
           <ImportExportPanel />
+        </Card>
+
+        <Card title="键盘快捷键" size="small" style={{ marginTop: 16 }}>
+          <List size="small" dataSource={[
+            { key: 'Cmd/Ctrl + K', desc: '聚焦搜索' },
+            { key: 'Cmd/Ctrl + N', desc: '添加订阅源' },
+            { key: 'Cmd/Ctrl + Shift + T', desc: '切换主题' },
+            { key: 'Escape', desc: '关闭弹窗' },
+          ]} renderItem={item => (
+            <List.Item style={{ padding: '8px 0' }}>
+              <Space>
+                <Typography.Text code style={{ fontSize: 12 }}>{item.key}</Typography.Text>
+                <Typography.Text type="secondary">{item.desc}</Typography.Text>
+              </Space>
+            </List.Item>
+          )} />
         </Card>
 
         <GroupManager />
