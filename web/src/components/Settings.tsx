@@ -5,10 +5,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select } from 'antd';
-import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined } from '@ant-design/icons';
+import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined } from '@ant-design/icons';
 import { TagManager } from './TagManager';
 import { TranslationSettings } from './TranslationSettings';
+import { PublicListEditor } from './PublicListEditor';
+import { RSSGenerator } from './RSSGenerator';
 import * as syncService from '../services/syncService';
+import type { PublicList, FeedInfo } from '../types/publicList';
+import * as publicListDB from '../db/publicListDB';
 
 const { TabPane } = Tabs;
 
@@ -28,6 +32,9 @@ export const Settings: React.FC = () => {
         </TabPane>
         <TabPane tab={<span><CloudSyncOutlined /> 同步设置</span>} key="sync">
           <SyncSettings />
+        </TabPane>
+        <TabPane tab={<span><ShareAltOutlined /> 公开列表</span>} key="public">
+          <PublicListsSettings />
         </TabPane>
       </Tabs>
     </div>
@@ -257,6 +264,63 @@ const SyncSettings: React.FC = () => {
           <p>Instapaper 账户: <a href="https://www.instapaper.com" target="_blank" rel="noopener noreferrer">https://www.instapaper.com</a></p>
         </div>
       </Card>
+    </div>
+  );
+};
+
+const PublicListsSettings: React.FC = () => {
+  const [lists, setLists] = useState<PublicList[]>([]);
+  const [selectedList, setSelectedList] = useState<PublicList | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'editor' | 'generator'>('editor');
+
+  // Mock feeds for demo - in production these would come from actual feed data
+  const availableFeeds: FeedInfo[] = [
+    { id: 'feed1', title: '科技资讯', url: 'https://tech.example.com', description: '科技行业新闻' },
+    { id: 'feed2', title: '前端开发', url: 'https://dev.example.com', description: '前端技术文章' },
+    { id: 'feed3', title: '财经分析', url: 'https://finance.example.com', description: '金融市场分析' },
+  ];
+
+  useEffect(() => {
+    loadLists();
+  }, []);
+
+  const loadLists = async () => {
+    try {
+      const allLists = await publicListDB.getAllPublicLists();
+      setLists(allLists.sort((a, b) => b.updatedAt - a.updatedAt));
+    } catch (err) {
+      console.error('Failed to load public lists:', err);
+    }
+  };
+
+  const handleSelectList = (list: PublicList) => {
+    setSelectedList(list);
+    setActiveSubTab('generator');
+  };
+
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <Tabs
+        activeKey={activeSubTab}
+        onChange={setActiveSubTab as (key: string) => void}
+        size="small"
+      >
+        <Tabs.TabPane tab="列表管理" key="editor">
+          <PublicListEditor
+            availableFeeds={availableFeeds}
+            onSelectList={handleSelectList}
+          />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="生成 RSS/Atom" key="generator" disabled={lists.length === 0}>
+          {selectedList ? (
+            <RSSGenerator list={selectedList} />
+          ) : (
+            <Card size="small">
+              <Empty description="请先选择一个公开列表进行生成" />
+            </Card>
+          )}
+        </Tabs.TabPane>
+      </Tabs>
     </div>
   );
 };
