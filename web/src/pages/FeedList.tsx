@@ -39,6 +39,7 @@ import {
   FolderOpenOutlined,
   StarOutlined,
   SearchOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
@@ -73,12 +74,13 @@ import ReadLater from './ReadLater';
 import Recommendations from './Recommendations';
 import NoteEditor from '../components/NoteEditor';
 import SearchPage from './Search';
+import Stats from './Stats';
 import { I18nContext } from '../i18n';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats';
 
 export default function App() {
   const { t, locale, setLocale } = useContext(I18nContext);
@@ -203,6 +205,7 @@ export default function App() {
     { key: 'readlater', label: <span>{t('sidebar.readLater')} {readLaterCount > 0 ? <Badge count={readLaterCount} size="small" /> : null}</span>, icon: <BookOutlined /> },
     { key: 'recommendations', icon: <StarOutlined />, label: t('sidebar.recommendations') },
     { key: 'search', icon: <SearchOutlined />, label: t('sidebar.search') },
+    { key: 'stats', icon: <BarChartOutlined />, label: '统计' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -1051,6 +1054,7 @@ export default function App() {
           {activeMenu === 'readlater' && <ReadLater />}
           {activeMenu === 'recommendations' && <Recommendations />}
           {activeMenu === 'search' && <SearchPage />}
+          {activeMenu === 'stats' && <Stats />}
         </Content>
       </Layout>
 
