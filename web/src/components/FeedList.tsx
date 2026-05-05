@@ -5,10 +5,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { List, Card, Typography, Space, Button, Spin, Empty, Modal, Form, Input, message } from 'antd';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, CloudSyncOutlined } from '@ant-design/icons';
 import { TagFilterSidebar } from './TagFilterSidebar';
 import { TagBadge } from './TagBadge';
+import { ArticleSyncButtons } from './ArticleSyncButtons';
 import * as tagService from '../services/tagService';
+import * as syncService from '../services/syncService';
 import type { Tag } from '../types/tag';
 
 const { Title, Text } = Typography;
@@ -72,6 +74,8 @@ export const FeedList: React.FC = () => {
   const [addFeedModalOpen, setAddFeedModalOpen] = useState(false);
   const [articleTags, setArticleTags] = useState<Record<string, Tag[]>>({});
   const [form] = Form.useForm();
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: number; failed: number } | null>(null);
 
   // Load saved filter state
   useEffect(() => {
@@ -177,6 +181,31 @@ export const FeedList: React.FC = () => {
     return articleTags[articleId] || [];
   };
 
+  const handleSyncToReadwise = async () => {
+    const token = await syncService.getReadwiseConfig();
+    if (!token) {
+      message.warning('请先在设置中配置 Readwise API Token');
+      return;
+    }
+
+    setSyncing(true);
+    setSyncResult(null);
+
+    try {
+      const result = await syncService.syncAllToReadwise(articles, token);
+      setSyncResult({ success: result.success, failed: result.failed });
+      if (result.failed === 0) {
+        message.success(`成功同步 ${result.success} 篇文章到 Readwise`);
+      } else {
+        message.warning(`同步完成: ${result.success} 成功, ${result.failed} 失败`);
+      }
+    } catch (err) {
+      message.error('同步失败');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
       {/* Tag Filter Sidebar */}
@@ -204,6 +233,13 @@ export const FeedList: React.FC = () => {
             >
               添加订阅源
             </Button>
+            <Button
+              icon={<CloudSyncOutlined />}
+              onClick={handleSyncToReadwise}
+              loading={syncing}
+            >
+              同步到 Readwise
+            </Button>
           </Space>
         </div>
 
@@ -224,13 +260,16 @@ export const FeedList: React.FC = () => {
               return (
                 <List.Item
                   extra={
-                    <Button
-                      type="link"
-                      href={article.link}
-                      target="_blank"
-                    >
-                      查看原文
-                    </Button>
+                    <Space direction="vertical" align="end">
+                      <Button
+                        type="link"
+                        href={article.link}
+                        target="_blank"
+                      >
+                        查看原文
+                      </Button>
+                      <ArticleSyncButtons article={article as syncService.Article} />
+                    </Space>
                   }
                 >
                   <List.Item.Meta
