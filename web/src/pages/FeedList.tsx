@@ -104,6 +104,8 @@ export default function App() {
   const [noteDrawerOpen, setNoteDrawerOpen] = useState(false);
   const [noteArticleId, setNoteArticleId] = useState<string | null>(null);
   const [noteArticleTitle, setNoteArticleTitle] = useState<string>('');
+  const [selectedSubIds, setSelectedSubIds] = useState<Set<string>>(new Set());
+  const [showSelectMode, setShowSelectMode] = useState(false);
 
   useEffect(() => {
     // Cmd+K: focus search
@@ -448,6 +450,12 @@ export default function App() {
     setGroups(newGroups);
   }
 
+  async function loadSubscriptions() {
+    const [newSubs, newGroups] = await Promise.all([getSubscriptions(), getGroups()]);
+    setSubscriptions(newSubs);
+    setGroups(newGroups);
+  }
+
   const renderFeeds = () => (
     <div>
       <InstallPrompt />
@@ -455,6 +463,87 @@ export default function App() {
         <Button icon={<PlusOutlined />} type="primary" onClick={() => setAddModalOpen(true)}>添加订阅源</Button>
         <Button icon={<ReloadOutlined />} onClick={handleRefreshAll} loading={loading}>刷新全部</Button>
       </div>
+
+      {/* Batch Toolbar */}
+      {selectedSubIds.size > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 16px',
+            background: '#e6f7ff',
+            borderBottom: '1px solid #91d5ff',
+            marginBottom: 8,
+          }}
+        >
+          <Text strong>已选择 {selectedSubIds.size} 项</Text>
+          <Select
+            placeholder="移动到分组"
+            style={{ width: 140 }}
+            allowClear
+            onChange={async (groupId) => {
+              const updatePromises = Array.from(selectedSubIds).map(id => {
+                const sub = subscriptions.find(s => s.id === id);
+                if (sub) {
+                  return updateSubscription({ ...sub, groupId: groupId || undefined });
+                }
+                return Promise.resolve();
+              });
+              await Promise.all(updatePromises);
+              message.success('已移动到分组');
+              setSelectedSubIds(new Set());
+              setShowSelectMode(false);
+              loadSubscriptions();
+            }}
+            options={[
+              { label: '未分组', value: undefined },
+              ...groups.map(g => ({ label: g.name, value: g.id })),
+            ]}
+          />
+          <Button size="small" onClick={async () => {
+            const updatePromises = Array.from(selectedSubIds).map(id => {
+              const sub = subscriptions.find(s => s.id === id);
+              if (sub) return updateSubscription({ ...sub, enabled: true });
+              return Promise.resolve();
+            });
+            await Promise.all(updatePromises);
+            message.success('已批量启用');
+            setSelectedSubIds(new Set());
+            setShowSelectMode(false);
+            loadSubscriptions();
+          }}>启用</Button>
+          <Button size="small" onClick={async () => {
+            const updatePromises = Array.from(selectedSubIds).map(id => {
+              const sub = subscriptions.find(s => s.id === id);
+              if (sub) return updateSubscription({ ...sub, enabled: false });
+              return Promise.resolve();
+            });
+            await Promise.all(updatePromises);
+            message.success('已批量禁用');
+            setSelectedSubIds(new Set());
+            setShowSelectMode(false);
+            loadSubscriptions();
+          }}>禁用</Button>
+          <Popconfirm
+            title={`确定删除 ${selectedSubIds.size} 个订阅源？`}
+            onConfirm={async () => {
+              const deletePromises = Array.from(selectedSubIds).map(id => deleteSubscription(id));
+              await Promise.all(deletePromises);
+              message.success('已批量删除');
+              setSelectedSubIds(new Set());
+              setShowSelectMode(false);
+              loadSubscriptions();
+            }}
+          >
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
+          <Button size="small" type="text" onClick={() => {
+            setSelectedSubIds(new Set());
+            setShowSelectMode(false);
+          }}>取消</Button>
+        </div>
+      )}
 
       {/* Grouped subscriptions */}
       {groups.map((group) => {
@@ -473,6 +562,23 @@ export default function App() {
               }}
               onClick={() => handleToggleGroupCollapse(group.id)}
             >
+              <Checkbox
+                checked={groupSubs.length > 0 && groupSubs.every(s => selectedSubIds.has(s.id))}
+                indeterminate={groupSubs.some(s => selectedSubIds.has(s.id)) && !groupSubs.every(s => selectedSubIds.has(s.id))}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  const newSet = new Set(selectedSubIds);
+                  if (e.target.checked) {
+                    groupSubs.forEach(s => newSet.add(s.id));
+                    setShowSelectMode(true);
+                  } else {
+                    groupSubs.forEach(s => newSet.delete(s.id));
+                    if (newSet.size === 0) setShowSelectMode(false);
+                  }
+                  setSelectedSubIds(newSet);
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
               {isCollapsed ? <FolderOutlined /> : <FolderOpenOutlined />}
               <Text strong style={{ marginLeft: 8 }}>{group.name}</Text>
               <Text type="secondary" style={{ marginLeft: 8 }}>({groupSubs.length})</Text>
@@ -482,6 +588,22 @@ export default function App() {
                 dataSource={groupSubs}
                 renderItem={(sub) => (
                   <List.Item
+                    extra={
+                      <Checkbox
+                        checked={selectedSubIds.has(sub.id)}
+                        onChange={(e) => {
+                          const newSet = new Set(selectedSubIds);
+                          if (e.target.checked) {
+                            newSet.add(sub.id);
+                            setShowSelectMode(true);
+                          } else {
+                            newSet.delete(sub.id);
+                            if (newSet.size === 0) setShowSelectMode(false);
+                          }
+                          setSelectedSubIds(newSet);
+                        }}
+                      />
+                    }
                     actions={[
                       <Switch key="toggle" checked={sub.enabled} onChange={() => handleToggleEnabled(sub)} size="small" />,
                       <Select
@@ -527,7 +649,22 @@ export default function App() {
         return (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', marginBottom: 8 }}>
-              <FolderOutlined />
+              <Checkbox
+                checked={ungroupedSubs.length > 0 && ungroupedSubs.every(s => selectedSubIds.has(s.id))}
+                indeterminate={ungroupedSubs.some(s => selectedSubIds.has(s.id)) && !ungroupedSubs.every(s => selectedSubIds.has(s.id))}
+                onChange={(e) => {
+                  const newSet = new Set(selectedSubIds);
+                  if (e.target.checked) {
+                    ungroupedSubs.forEach(s => newSet.add(s.id));
+                    setShowSelectMode(true);
+                  } else {
+                    ungroupedSubs.forEach(s => newSet.delete(s.id));
+                    if (newSet.size === 0) setShowSelectMode(false);
+                  }
+                  setSelectedSubIds(newSet);
+                }}
+              />
+              <FolderOutlined style={{ marginLeft: 8 }} />
               <Text strong style={{ marginLeft: 8 }}>未分组</Text>
               <Text type="secondary" style={{ marginLeft: 8 }}>({ungroupedSubs.length})</Text>
             </div>
@@ -535,6 +672,23 @@ export default function App() {
               dataSource={ungroupedSubs}
               renderItem={(sub) => (
                 <List.Item
+                  style={{ paddingLeft: 24 }}
+                  extra={
+                    <Checkbox
+                      checked={selectedSubIds.has(sub.id)}
+                      onChange={(e) => {
+                        const newSet = new Set(selectedSubIds);
+                        if (e.target.checked) {
+                          newSet.add(sub.id);
+                          setShowSelectMode(true);
+                        } else {
+                          newSet.delete(sub.id);
+                          if (newSet.size === 0) setShowSelectMode(false);
+                        }
+                        setSelectedSubIds(newSet);
+                      }}
+                    />
+                  }
                   actions={[
                     <Switch key="toggle" checked={sub.enabled} onChange={() => handleToggleEnabled(sub)} size="small" />,
                     <Select
