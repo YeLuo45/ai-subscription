@@ -46,14 +46,18 @@ jobs:
 
       - name: Debug vite installation
         run: |
+          echo "=== Root package.json devDependencies vite ==="
+          cat package.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('devDependencies',{}).get('vite','NOT FOUND'))"
+          echo "=== web/package.json devDependencies vite ==="
+          cat web/package.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('devDependencies',{}).get('vite','NOT FOUND'))"
           echo "=== root node_modules/vite ==="
           ls node_modules/vite/package.json 2>&1 || echo "NOT FOUND"
-          echo "=== web/node_modules/vite/package.json ==="
+          echo "=== web/node_modules/vite ==="
           ls web/node_modules/vite/package.json 2>&1 || echo "NOT FOUND"
-          echo "=== web/node_modules | head -20 ==="
+          echo "=== which vite ==="
+          which vite 2>&1 || echo "NOT FOUND"
+          echo "=== ls web/node_modules | head -20 ==="
           ls web/node_modules/ 2>&1 | head -20
-          echo "=== Root package.json devDependencies ==="
-          cat package.json | grep -A10 '"devDependencies"'
 
       - name: Build
         run: |
