@@ -32,16 +32,22 @@ jobs:
       - name: Install dependencies
         run: |
           npm install
-          # Delete rolldown after install - it has a known npm bug on linux-x64-gnu
-          # where the native binding doesn't install correctly, causing vite build to fail.
-          # Vite 4.x uses esbuild as bundler so rolldown is not needed.
-          find web/node_modules -name "rolldown" -type d -exec rm -rf {} + 2>/dev/null || true
-          find web/node_modules -path "*/@rolldown/*" -exec rm -rf {} + 2>/dev/null || true
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
 
+      - name: Delete rolldown (GLIBCXX bug workaround)
+        run: |
+          # rolldown has a known npm bug where the linux-x64-gnu native binding
+          # fails to load due to GLIBCXX version mismatch. Vite 4.x uses esbuild
+          # by default so rolldown is optional and not actually used.
+          # npm workspaces hoists deps to root node_modules, so check there too.
+          find node_modules web/node_modules -name "rolldown" -type d -exec rm -rf {} + 2>/dev/null || true
+          find node_modules web/node_modules -path "*/@rolldown/binding-*" -exec rm -rf {} + 2>/dev/null || true
+
       - name: Build
-        run: npm run build
+        run: |
+          cd web
+          npm run build
 
       - name: Upload artifact
         if: always()
