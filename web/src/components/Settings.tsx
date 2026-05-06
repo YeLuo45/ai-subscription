@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select, Empty } from 'antd';
-import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined, ApiOutlined } from '@ant-design/icons';
+import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined, ApiOutlined, RocketOutlined } from '@ant-design/icons';
 import { TagManager } from './TagManager';
+import { WorkflowList } from './WorkflowList';
 import { TranslationSettings } from './TranslationSettings';
 import { PublicListEditor } from './PublicListEditor';
 import { RSSGenerator } from './RSSGenerator';
@@ -45,6 +46,9 @@ export const Settings: React.FC = () => {
         </TabPane>
         <TabPane tab={<span><ApiOutlined /> 开发者</span>} key="developer">
           <DeveloperPanel />
+        </TabPane>
+        <TabPane tab={<span><RocketOutlined /> 自动化工作流</span>} key="workflow">
+          <WorkflowList />
         </TabPane>
       </Tabs>
     </div>

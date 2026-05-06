@@ -1,5 +1,6 @@
 // AI Model Adapter - unified interface for multiple AI providers
 import type { AIModel } from '../types';
+import { parseStructuredSummary, type StructuredSummary, type ArticleSummary, SENTIMENT_LABELS } from '../../../shared/lib/ai/summary-schema';
 
 export interface SummarizeResult {
   summary: string;
@@ -203,4 +204,95 @@ export async function summarizeWithFallback(
     success: false,
     error: `所有模型均失败: ${lastError}`,
   };
+}
+
+// Structured Summary for P-20260506-008
+const STRUCTURED_SUMMARY_PROMPT = `你是一个文章分析助手。请为以下文章生成结构化摘要：
+
+## 文章内容
+{content}
+
+## 输出格式（严格遵循JSON）
+{{
+  "generated_title": "生成的优质标题（15-30字）",
+  "key_points": ["关键点1", "关键点2", "关键点3"],
+  "sentiment": "positive|negative|neutral|shocking|inspiring",
+  "summary": "30字内的一句话概括"
+}}
+
+要求：
+- generated_title 不要复述原文标题，要提炼核心观点
+- key_points 必须是原文未明确说出的推理或延伸洞察
+- sentiment 选择最贴合的一个标签`;
+
+export interface StructuredSummarizeResult {
+  success: boolean;
+  structuredSummary?: ArticleSummary;
+  error?: string;
+}
+
+export async function summarizeStructured(
+  article: { title: string; content: string; description: string },
+  model: AIModel
+): Promise<StructuredSummarizeResult> {
+  const content = article.content || article.description;
+  if (!content || content.length < 50) {
+    return { success: false, error: '内容过短，无法生成结构化摘要' };
+  }
+
+  const prompt = STRUCTURED_SUMMARY_PROMPT.replace('{content}', `${article.title}\n\n${content.slice(0, 6000)}`);
+
+  try {
+    const { content: responseText } = await callModel(model, [
+      { role: 'system', content: '你是文章分析助手。你必须始终返回一个有效的JSON对象，不要包含其他内容。' },
+      { role: 'user', content: prompt },
+    ]);
+
+    const parsed = parseStructuredSummary(responseText);
+    if (!parsed) {
+      return { success: false, error: 'AI返回格式解析失败' };
+    }
+
+    return {
+      success: true,
+      structuredSummary: {
+        originalTitle: article.title,
+        generatedTitle: parsed.generatedTitle,
+        keyPoints: parsed.keyPoints,
+        sentiment: parsed.sentiment,
+        oneLineSummary: parsed.oneLineSummary,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function summarizeStructuredWithFallback(
+  article: { title: string; content: string; description: string },
+  models: AIModel[]
+): Promise<StructuredSummarizeResult> {
+  const priorityOrder = ['minimax', 'xiaomi', 'zhipu', 'claude', 'gemini'];
+  const sorted = [...models].sort((a, b) => {
+    return priorityOrder.indexOf(a.provider) - priorityOrder.indexOf(b.provider);
+  });
+
+  const available = sorted.filter((m) => m.apiKey && m.apiKey.trim());
+
+  if (available.length === 0) {
+    return { success: false, error: '没有可用的AI模型（请先配置API Key）' };
+  }
+
+  let lastError = '';
+  for (const model of available) {
+    const result = await summarizeStructured(article, model);
+    if (result.success) return result;
+    lastError = result.error || 'Unknown error';
+    console.warn(`Model ${model.name} failed for structured summary, trying next:`, lastError);
+  }
+
+  return { success: false, error: `所有模型均失败: ${lastError}` };
 }

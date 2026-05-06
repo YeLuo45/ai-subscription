@@ -16,6 +16,7 @@ import {
   saveSummary,
   savePushHistory,
 } from './storage';
+import { processArticleForRules } from './WorkflowEngine';
 
 let fetchTimer: number | null = null;
 let onUpdateCallback: (() => void) | undefined;
@@ -43,8 +44,10 @@ async function fetchSubscription(sub: Subscription): Promise<number> {
       // Check if already saved
       const existing = await getArticleByLink(article.link);
       if (!existing) {
-        await saveArticle(article);
+        const savedArticle = await saveArticle(article);
         newCount++;
+        // Trigger workflow rules for the new article (async, non-blocking)
+        processArticleForRules(savedArticle);
       }
     }
 
