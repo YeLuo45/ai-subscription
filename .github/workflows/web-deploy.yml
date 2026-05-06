@@ -44,6 +44,17 @@ jobs:
           find node_modules web/node_modules -name "rolldown" -type d -exec rm -rf {} + 2>/dev/null || true
           find node_modules web/node_modules -path "*/@rolldown/binding-*" -exec rm -rf {} + 2>/dev/null || true
 
+      - name: Debug vite installation
+        run: |
+          echo "=== root node_modules/vite ==="
+          ls node_modules/vite/package.json 2>&1 || echo "NOT FOUND"
+          echo "=== web/node_modules/vite/package.json ==="
+          ls web/node_modules/vite/package.json 2>&1 || echo "NOT FOUND"
+          echo "=== web/node_modules | head -20 ==="
+          ls web/node_modules/ 2>&1 | head -20
+          echo "=== Root package.json devDependencies ==="
+          cat package.json | grep -A10 '"devDependencies"'
+
       - name: Build
         run: |
           cd web
