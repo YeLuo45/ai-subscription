@@ -31,16 +31,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Remove stale lockfile that has wrong vite version
-          rm -f package-lock.json web/package-lock.json
           npm install
+          # Force install correct vite version to override any stale transitive deps
+          cd web && npm install vite@4.5.5 @vitejs/plugin-react@3.1.0 --save-dev
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
 
       - name: Build
         run: npm run build
-        env:
-          GITHUB_PAGES: 'true'
 
       - name: Upload artifact
         if: always()
