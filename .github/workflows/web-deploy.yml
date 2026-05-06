@@ -31,33 +31,23 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install
+          # Use --ignore-scripts to skip postinstall scripts that would
+          # download/build native bindings (rolldown needs GLIBCXX_3.4.30
+          # which Ubuntu GitHub runners don't have).
+          # This keeps rolldown package intact (vite can find it as a module)
+          # but prevents the native binding from being installed.
+          npm install --ignore-scripts
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
 
-      - name: Delete rolldown (GLIBCXX bug workaround)
+      - name: Debug vite build
         run: |
-          # rolldown has a known npm bug where the linux-x64-gnu native binding
-          # fails to load due to GLIBCXX version mismatch. Vite 4.x uses esbuild
-          # by default so rolldown is optional and not actually used.
-          # npm workspaces hoists deps to root node_modules, so check there too.
-          find node_modules web/node_modules -name "rolldown" -type d -exec rm -rf {} + 2>/dev/null || true
-          find node_modules web/node_modules -path "*/@rolldown/binding-*" -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Debug vite installation
-        run: |
-          echo "=== Root package.json devDependencies vite ==="
-          cat package.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('devDependencies',{}).get('vite','NOT FOUND'))"
-          echo "=== web/package.json devDependencies vite ==="
-          cat web/package.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('devDependencies',{}).get('vite','NOT FOUND'))"
-          echo "=== root node_modules/vite ==="
-          ls node_modules/vite/package.json 2>&1 || echo "NOT FOUND"
-          echo "=== web/node_modules/vite ==="
-          ls web/node_modules/vite/package.json 2>&1 || echo "NOT FOUND"
-          echo "=== which vite ==="
-          which vite 2>&1 || echo "NOT FOUND"
-          echo "=== ls web/node_modules | head -20 ==="
-          ls web/node_modules/ 2>&1 | head -20
+          echo "=== vite version ==="
+          cat web/node_modules/vite/package.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])"
+          echo "=== rolldown package exists? ==="
+          ls web/node_modules/rolldown/package.json 2>&1 || echo "NOT FOUND"
+          echo "=== @rolldown binding ==="
+          ls web/node_modules/@rolldown/binding-linux-x64-gnu/ 2>&1 || echo "NOT FOUND"
 
       - name: Build
         run: |
