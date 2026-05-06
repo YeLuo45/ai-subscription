@@ -31,13 +31,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Remove lockfiles to force fresh install of correct versions
-          rm -f package-lock.json web/package-lock.json
           npm install
-          # Override vite version (lockfile may resolve to wrong version)
-          cd web && npm install vite@4.5.5 @vitejs/plugin-react@3.1.0 --save-dev
-          # Remove rolldown that some transitive dep may have pulled in
-          rm -rf web/node_modules/rolldown web/node_modules/@rolldown
+          # Delete rolldown after install - it has a known npm bug on linux-x64-gnu
+          # where the native binding doesn't install correctly, causing vite build to fail.
+          # Vite 4.x uses esbuild as bundler so rolldown is not needed.
+          find web/node_modules -name "rolldown" -type d -exec rm -rf {} + 2>/dev/null || true
+          find web/node_modules -path "*/@rolldown/*" -exec rm -rf {} + 2>/dev/null || true
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
 
