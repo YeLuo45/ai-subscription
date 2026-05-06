@@ -41,8 +41,8 @@ jobs:
 
       - name: Debug vite build
         run: |
-          echo "=== vite version ==="
-          cat web/node_modules/vite/package.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])"
+          echo "=== vite version (root node_modules) ==="
+          cat node_modules/vite/package.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])"
           echo "=== rolldown package exists? ==="
           ls web/node_modules/rolldown/package.json 2>&1 || echo "NOT FOUND"
           echo "=== @rolldown binding ==="
@@ -51,7 +51,7 @@ jobs:
       - name: Build
         run: |
           cd web
-          npm run build
+          node ../node_modules/vite/bin/vite.js build
 
       - name: Upload artifact
         if: always()
