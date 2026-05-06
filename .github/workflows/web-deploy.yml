@@ -30,7 +30,10 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          # Remove stale lockfile that has wrong vite version
+          rm -f package-lock.json web/package-lock.json
+          npm install
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
 
