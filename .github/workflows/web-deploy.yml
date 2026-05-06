@@ -31,11 +31,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Use --ignore-scripts to skip postinstall scripts that would
-          # download/build native bindings (rolldown needs GLIBCXX_3.4.30
-          # which Ubuntu GitHub runners don't have).
-          # This keeps rolldown package intact (vite can find it as a module)
-          # but prevents the native binding from being installed.
+          # Delete lockfiles so ^4.5.5 in web/package.json resolves to 4.5.5
+          # (lockfiles pin vite to 8.0.10, which has rolldown baked in and
+          # ignores --ignore-scripts for its native binding).
+          rm -f package-lock.json web/package-lock.json
           npm install --ignore-scripts
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
