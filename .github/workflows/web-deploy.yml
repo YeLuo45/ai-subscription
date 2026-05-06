@@ -30,15 +30,12 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: |
-          cd web && rm -rf node_modules
-          npm install
+        run: npm install
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
 
       - name: Build
-        run: |
-          cd web && npm run build
+        run: npm run build
         env:
           GITHUB_PAGES: 'true'
 
