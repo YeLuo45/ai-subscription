@@ -31,9 +31,13 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # Remove lockfiles to force fresh install of correct versions
+          rm -f package-lock.json web/package-lock.json
           npm install
-          # Force install correct vite version to override any stale transitive deps
+          # Override vite version (lockfile may resolve to wrong version)
           cd web && npm install vite@4.5.5 @vitejs/plugin-react@3.1.0 --save-dev
+          # Remove rolldown that some transitive dep may have pulled in
+          rm -rf web/node_modules/rolldown web/node_modules/@rolldown
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
 
