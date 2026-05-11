@@ -129,6 +129,9 @@ export async function routeAndCall(
     thinkingConfig
   );
 
+  // Record cost if available
+  recordCostAsync(taskType, selectedModelId, selectedProviderId, result.usage, true);
+
   return {
     text: result.text,
     modelId: selectedModelId,
@@ -138,8 +141,44 @@ export async function routeAndCall(
 }
 
 /**
- * Route and call with automatic fallback
+ * Async cost recording - doesn't block the response
  */
+function recordCostAsync(
+  taskType: TaskType,
+  modelId: string,
+  providerId: string,
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined,
+  success: boolean
+): void {
+  // Dynamically import cost tracker to avoid circular deps
+  import('./cost-tracker').then(({ calculateCost, addRecord }) => {
+    const inputTokens = usage?.promptTokens || 0;
+    const outputTokens = usage?.completionTokens || 0;
+    const costUSD = calculateCost(modelId, inputTokens, outputTokens);
+
+    addRecord({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      timestamp: Date.now(),
+      taskType,
+      modelId,
+      provider: providerId,
+      inputTokens,
+      outputTokens,
+      costUSD,
+      latencyMs: 0, // Not tracking latency here
+      success,
+    }).catch(() => {
+      // Silently fail
+    });
+  }).catch(() => {
+    // Cost tracker not available
+  });
+}
+
+// ============================================================
+// Route and Call with Fallback
+// ============================================================
+
 export async function routeAndCallWithFallback(
   options: RouteAndCallOptions
 ): Promise<{
@@ -194,6 +233,10 @@ export async function routeAndCallWithFallback(
   throw lastError || new Error(`All models failed for task type: ${taskType}`);
 }
 
+// ============================================================
+// Prompt-based Helpers
+// ============================================================
+
 /**
  * Create a simple prompt-based routeAndCall helper
  */
@@ -219,7 +262,7 @@ export async function routeAndPrompt(
 export async function routeAndStructuredCall<T>(
   taskType: TaskType,
   prompt: string,
-  schema: z.ZodSchema<T>,
+  schema: any, // z.ZodSchema<T>
   options?: Partial<Omit<RouteAndCallOptions, 'taskType' | 'messages'>>
 ): Promise<{
   data: T;
