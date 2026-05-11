@@ -15,7 +15,8 @@ export type TaskType =
   | 'tag-generation'
   | 'knowledge-graph'    // entity extraction
   | 'chat'              // conversational interaction
-  | 'push-strategy';    // push notification content strategy generation
+  | 'push-strategy'    // push notification content strategy generation
+  | 'intent-classification'; // natural language intent parsing
 
 // Model cost rank (1=cheapest, 3=most expensive)
 export type CostRank = 1 | 2 | 3;
@@ -112,7 +113,7 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         contextWindow: 1000000,
         outputWindow: 8192,
         capabilities: { streaming: true, tools: true, vision: true },
-        taskTypes: ['translation', 'quick-summary'],
+        taskTypes: ['translation', 'quick-summary', 'intent-classification'],
         costRank: 1,
         recommendedFor: ['high-volume', 'low-latency', 'cost-effective'],
       },
