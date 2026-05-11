@@ -21,3 +21,15 @@ export { decidePipeline, validatePipelineOptions } from './director';
 
 // Pipeline
 export { runPipeline, runPipelineCollected } from './pipeline';
+
+// Push Strategy Types
+export type {
+  PushContentAnalysis,
+  AggregatedPushContent,
+  PushStrategyResult,
+  PushStrategyItem,
+  BatchPushStrategyRequest,
+} from './push-strategy-types';
+
+// Push Strategy Aggregator
+export { generatePushStrategy, generateSinglePushStrategy } from './push-strategy-aggregator';

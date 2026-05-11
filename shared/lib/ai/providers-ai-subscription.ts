@@ -14,7 +14,8 @@ export type TaskType =
   | 'structured-summary' // needs multi-dimensional output (title + key_points + tags)
   | 'tag-generation'
   | 'knowledge-graph'    // entity extraction
-  | 'chat';             // conversational interaction
+  | 'chat'              // conversational interaction
+  | 'push-strategy';    // push notification content strategy generation
 
 // Model cost rank (1=cheapest, 3=most expensive)
 export type CostRank = 1 | 2 | 3;
@@ -51,7 +52,7 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         contextWindow: 128000,
         outputWindow: 16384,
         capabilities: { streaming: true, tools: true, vision: true },
-        taskTypes: ['structured-summary', 'tag-generation', 'chat'],
+        taskTypes: ['structured-summary', 'tag-generation', 'chat', 'push-strategy'],
         costRank: 3,
         recommendedFor: ['multi-dimensional-output', 'high-accuracy-tags'],
       },
@@ -91,7 +92,7 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         contextWindow: 200000,
         outputWindow: 8192,
         capabilities: { streaming: true, tools: true, vision: true },
-        taskTypes: ['standard-summary', 'structured-summary', 'chat'],
+        taskTypes: ['standard-summary', 'structured-summary', 'chat', 'push-strategy'],
         costRank: 2,
         recommendedFor: ['balanced-performance'],
       },
@@ -120,7 +121,7 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         contextWindow: 1000000,
         outputWindow: 8192,
         capabilities: { streaming: true, tools: true, vision: true },
-        taskTypes: ['knowledge-graph', 'standard-summary', 'structured-summary'],
+        taskTypes: ['knowledge-graph', 'standard-summary', 'structured-summary', 'push-strategy'],
         costRank: 2,
         recommendedFor: ['deep-understanding', 'entity-extraction'],
       },
