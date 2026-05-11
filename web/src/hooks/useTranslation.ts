@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { callLLM } from "../../../shared/lib/ai/llm";
+import { routeAndCall } from "../../../shared/lib/ai/llm-router";
 import { detectLanguage, type Language } from '../lib/languageDetect';
 import * as translationDB from '../db/translationDB';
 import type { TranslationSettings } from '../db/translationDB';
@@ -189,26 +189,20 @@ export function useTranslation(): UseTranslationReturn {
         // DeepL uses a different approach - in a real implementation,
         // you would call the DeepL API directly
         // For now, fall back to gemini
-        result = await callLLM(
-          {
-            model: 'google/gemini-2.0-flash',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
-            maxTokens: 1000,
-          },
-          'translation'
-        );
+        result = await routeAndCall({
+          taskType: 'translation',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          maxTokens: 1000,
+        });
       } else {
         // Gemini Flash
-        result = await callLLM(
-          {
-            model: 'google/gemini-2.0-flash',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
-            maxTokens: 1000,
-          },
-          'translation'
-        );
+        result = await routeAndCall({
+          taskType: 'translation',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          maxTokens: 1000,
+        });
       }
 
       const translationResult = parseTranslationResponse(result.text);

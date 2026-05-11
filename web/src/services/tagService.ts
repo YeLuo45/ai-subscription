@@ -32,7 +32,7 @@ export async function generateFeedTags(
   apiKey?: string
 ): Promise<Tag[]> {
   try {
-    const { callLLM } = await import('@shared/lib/ai/llm');
+    const { routeAndCall } = await import('@shared/lib/ai/llm-router');
     
     const prompt = `分析以下RSS订阅源，生成3个标签：1个主题标签、1个形式标签、1个情绪标签。
 每个标签应该是简短的中文词汇（2-4字）。
@@ -49,16 +49,12 @@ export async function generateFeedTags(
 标题：${feedTitle}
 描述：${feedDescription || '无'}`;
 
-    const result = await callLLM(
-      {
-        model: 'minimax/MiniMax-Text-01',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        maxTokens: 200,
-        apiKey: apiKey || '',
-      },
-      'tag-generation'
-    );
+    const result = await routeAndCall({
+      taskType: 'tag-generation',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      maxTokens: 200,
+    });
 
     const text = result.text.trim();
     // Extract JSON
@@ -117,7 +113,7 @@ export async function generateArticleTags(
   apiKey?: string
 ): Promise<Tag[]> {
   try {
-    const { callLLM } = await import('@shared/lib/ai/llm');
+    const { routeAndCall } = await import('@shared/lib/ai/llm-router');
     
     const existingTags = feedTags.map(t => t.name).join('、');
     const content = (articleTitle + ' ' + articleContent).slice(0, 2000);
@@ -136,16 +132,12 @@ export async function generateArticleTags(
 4. 用JSON格式返回：{"recommendedTags":["标签1","标签2"]}
 5. 如果没有合适的标签，返回{"recommendedTags":[]}`;
 
-    const result = await callLLM(
-      {
-        model: 'minimax/MiniMax-Text-01',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        maxTokens: 100,
-        apiKey: apiKey || '',
-      },
-      'article-tag-recommendation'
-    );
+    const result = await routeAndCall({
+      taskType: 'tag-generation',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      maxTokens: 100,
+    });
 
     const text = result.text.trim();
     const jsonMatch = text.match(/\{[\s\S]*\}/);

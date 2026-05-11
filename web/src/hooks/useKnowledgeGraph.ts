@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { callLLM } from '../../../shared/lib/ai/llm';
+import { routeAndCall } from '../../../shared/lib/ai/llm-router';
 import type { KnowledgeGraph, Entity, Relation, KnowledgeGraphExtracted } from '../types/knowledgeGraph';
 import { generateEntityId, generateRelationId } from '../types/knowledgeGraph';
 import * as kgDB from '../db/knowledgeGraphDB';
@@ -132,15 +132,12 @@ export function useKnowledgeGraph(): UseKnowledgeGraphReturn {
     try {
       const prompt = buildExtractionPrompt(articleTitle, content);
 
-      const result = await callLLM(
-        {
-          model: 'minimax/MiniMax-Text-01',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-          maxTokens: 2000,
-        },
-        'knowledge-graph-extraction'
-      );
+      const result = await routeAndCall({
+        taskType: 'knowledge-graph',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        maxTokens: 2000,
+      });
 
       const extracted = parseExtractionResponse(result.text);
 
