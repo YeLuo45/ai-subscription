@@ -1,4 +1,5 @@
 import { routeAndCall } from '@shared/lib/ai/llm-router';
+import { inferWithFallback } from '../local-inference';
 import { Intent, IntentResult } from './types';
 
 const INTENT_PROMPT = `你是一个订阅管理助手。用户输入自然语言，解析为结构化意图。
@@ -24,23 +25,31 @@ const INTENT_PROMPT = `你是一个订阅管理助手。用户输入自然语言
 
 export async function parseIntent(userMessage: string): Promise<IntentResult> {
   try {
-    const result = await routeAndCall({
+    // Try local inference first, fallback to cloud
+    const localResult = await inferWithFallback({
       taskType: 'intent-classification',
-      prompt: `${INTENT_PROMPT}\n\n用户输入：${userMessage}`,
-      systemPrompt: '你是一个订阅管理助手。根据用户输入，输出JSON格式的IntentResult。',
-      expectJson: true,
+      input: userMessage,
     });
 
-    const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+    if (localResult.success) {
+      const parsed = typeof localResult.output === 'string' 
+        ? JSON.parse(localResult.output) 
+        : localResult.output;
 
-    return {
-      intent: parsed.intent || Intent.UNKNOWN,
-      entities: parsed.entities || {},
-      confidence: parsed.confidence || 0,
-      response: parsed.response || '收到你的指令了',
-      needsConfirmation: parsed.needsConfirmation || false,
-      confirmationMessage: parsed.confirmationMessage,
-    };
+      console.log(`[IntentParser] ${localResult.model === 'local-classifier' ? 'Local' : 'Cloud'} inference:`, localResult.latencyMs, 'ms');
+
+      return {
+        intent: parsed.intent || Intent.UNKNOWN,
+        entities: parsed.entities || {},
+        confidence: parsed.confidence || 0,
+        response: parsed.response || '收到你的指令了',
+        needsConfirmation: parsed.needsConfirmation || false,
+        confirmationMessage: parsed.confirmationMessage,
+      };
+    }
+
+    // If local fails, fallback to simple regex
+    return parseIntentSimple(userMessage);
   } catch {
     return parseIntentSimple(userMessage);
   }
