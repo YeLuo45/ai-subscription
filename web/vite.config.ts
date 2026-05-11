@@ -162,21 +162,27 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, '../shared'),
+      'async_hooks': path.resolve(__dirname, './async-hooks-stub.ts'),
     },
+  },
+  define: {
+    // Mock async_hooks for browser build - AsyncLocalStorage is only used
+    // for Node.js request tracing and replaced with no-ops in browser
+    'import.meta.env.ASYNC_HOOKS_AVAILABLE': 'false',
   },
   build: {
     rollupOptions: {
       // The 'ai' package and other dependencies are in web/node_modules
       external: [
         'ai', '@ai-sdk/openai', '@ai-sdk/anthropic', '@ai-sdk/google',
-        'mathjs', 'jsonrepair', 'partial-json', 'zod'
+        'mathjs', 'jsonrepair', 'partial-json', 'zod',
       ],
     },
   },
   optimizeDeps: {
     include: [
       'ai', '@ai-sdk/openai', '@ai-sdk/anthropic', '@ai-sdk/google',
-      'mathjs', 'jsonrepair', 'partial-json', 'zod'
+      'mathjs', 'jsonrepair', 'partial-json', 'zod',
     ],
   },
 })
