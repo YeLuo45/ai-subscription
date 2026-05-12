@@ -1,12 +1,28 @@
 import { parseIntent, parseIntentSimple } from './intent-parser';
 import { executeOperation, formatOperationMessage } from './operations';
-import { Intent, IntentResult, ConversationMessage, OperationResult } from './types';
+import type { Intent, IntentResult, ConversationMessage as TypesMessage, OperationResult } from './types';
+import type { ConversationHistoryStorage, ConversationMessage } from '../../../shared/lib/ai/conversation-history/types';
 
 export class ConversationManager {
-  private messages: ConversationMessage[] = [];
+  private sessionId: string;
+  private storage: ConversationHistoryStorage;
 
-  addMessage(role: 'user' | 'assistant', content: string) {
-    this.messages.push({ role, content, timestamp: new Date() });
+  constructor(storage: ConversationHistoryStorage, sessionId?: string) {
+    this.storage = storage;
+    this.sessionId = sessionId || crypto.randomUUID();
+  }
+
+  async initSession(): Promise<ConversationSession | null> {
+    let session = await this.storage.getSession(this.sessionId);
+    if (!session) {
+      session = await this.storage.createSession();
+      this.sessionId = session.id;
+    }
+    return session;
+  }
+
+  getSessionId(): string {
+    return this.sessionId;
   }
 
   async processMessage(userMessage: string): Promise<{
@@ -14,7 +30,11 @@ export class ConversationManager {
     operationResult?: OperationResult;
     finalResponse: string;
   }> {
-    this.addMessage('user', userMessage);
+    // Add user message
+    await this.storage.addMessage(this.sessionId, {
+      role: 'user',
+      content: userMessage,
+    });
 
     // Try AI-powered parsing first, fallback to simple regex
     let intentResult: IntentResult;
@@ -27,7 +47,10 @@ export class ConversationManager {
     // If needs confirmation, return confirmation message
     if (intentResult.needsConfirmation && !userMessage.includes('确认')) {
       const response = intentResult.confirmationMessage || intentResult.response;
-      this.addMessage('assistant', response);
+      await this.storage.addMessage(this.sessionId, {
+        role: 'assistant',
+        content: response,
+      });
       return { intentResult, finalResponse: response };
     }
 
@@ -35,26 +58,50 @@ export class ConversationManager {
     const operationResult = await executeOperation(intentResult.intent, intentResult.entities);
     const finalResponse = formatOperationMessage(operationResult);
 
-    this.addMessage('assistant', finalResponse);
+    await this.storage.addMessage(this.sessionId, {
+      role: 'assistant',
+      content: finalResponse,
+    });
 
     return { intentResult, operationResult, finalResponse };
   }
 
-  getHistory(): ConversationMessage[] {
-    return [...this.messages];
+  async loadHistory(): Promise<ConversationMessage[]> {
+    return this.storage.getMessages(this.sessionId);
   }
 
-  clear() {
-    this.messages = [];
+  async clearHistory(): Promise<void> {
+    await this.storage.clearMessages(this.sessionId);
+  }
+
+  async switchSession(sessionId: string): Promise<void> {
+    this.sessionId = sessionId;
   }
 }
 
 // Singleton instance
 let managerInstance: ConversationManager | null = null;
+let storageInstance: ConversationHistoryStorage | null = null;
+
+export function initConversationStorage(storage: ConversationHistoryStorage): void {
+  storageInstance = storage;
+}
 
 export function getConversationManager(): ConversationManager {
+  if (!managerInstance || !storageInstance) {
+    throw new Error('ConversationStorage not initialized. Call initConversationStorage first.');
+  }
   if (!managerInstance) {
-    managerInstance = new ConversationManager();
+    managerInstance = new ConversationManager(storageInstance);
   }
   return managerInstance;
 }
+
+export function createConversationManager(storage: ConversationHistoryStorage, sessionId?: string): ConversationManager {
+  return new ConversationManager(storage, sessionId);
+}
+
+// Re-export types for convenience
+export type { ConversationMessage } from '../../../shared/lib/ai/conversation-history/types';
+import type { ConversationSession } from '../../../shared/lib/ai/conversation-history/types';
+export type { ConversationSession };
