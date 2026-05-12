@@ -4,9 +4,11 @@ import { routeAndCall } from '@shared/lib/ai/llm-router';
 import { detectHardware, canRunLocalModel } from './hardware-detector';
 import { getModelForTask, LOCAL_MODELS } from './model-registry';
 import type { LocalInferenceRequest, LocalInferenceResult, HardwareCapability } from './types';
+import { localModelManager, LOCAL_MODELS as SHARED_LOCAL_MODELS } from '@shared/lib/ai/local-model';
 
 let hardware: HardwareCapability | null = null;
 let initialized = false;
+let webllmInitialized = false;
 
 // Simple keyword-based local classifier
 const CLASSIFIER_RULES: Record<string, { keywords: string[]; category: string }[]> = {
@@ -82,6 +84,88 @@ export async function initializeLocalInference(): Promise<void> {
   initialized = true;
   console.log('[LocalInference] Hardware:', hardware);
   console.log('[LocalInference] Can run local:', canRunLocalModel(hardware!));
+  
+  // Try to initialize WebLLM if hardware supports it
+  if (hardware?.webGPUAvailable) {
+    try {
+      await localModelManager.loadModel('qwen2-0.5b', (p) => {
+        console.log('[LocalInference] Model load progress:', p);
+      });
+      webllmInitialized = true;
+      console.log('[LocalInference] WebLLM model loaded successfully');
+    } catch (e) {
+      console.warn('[LocalInference] Failed to load WebLLM model:', e);
+      webllmInitialized = false;
+    }
+  }
+}
+
+/**
+ * Check if any registered local model supports the given task type
+ */
+function getLocalModelForTaskType(taskType: string): string | null {
+  // Map task types to capabilities
+  const taskCapabilityMap: Record<string, 'classification' | 'summary' | 'translation'> = {
+    'intent-classification': 'classification',
+    'quick-summary': 'summary',
+    'tag-generation': 'classification', // tags are like classification
+  };
+  
+  const capability = taskCapabilityMap[taskType];
+  if (!capability) return null;
+  
+  // Find a model that supports this capability
+  const model = SHARED_LOCAL_MODELS.find(m => m.capabilities.includes(capability));
+  return model?.id || null;
+}
+
+/**
+ * Try to run inference using real local model (WebLLM)
+ */
+async function tryLocalModelInference(request: LocalInferenceRequest): Promise<LocalInferenceResult | null> {
+  const start = Date.now();
+  
+  // Check if we have a model for this task
+  const modelId = getLocalModelForTaskType(request.taskType);
+  if (!modelId) return null;
+  
+  // Check if model is loaded
+  if (!localModelManager.isModelLoaded(modelId)) {
+    // Try to load it
+    try {
+      await localModelManager.loadModel(modelId);
+    } catch (e) {
+      console.warn('[LocalInference] Failed to load model:', e);
+      return null;
+    }
+  }
+  
+  // Map task type to model task
+  const taskCapabilityMap: Record<string, 'classification' | 'summary' | 'translation'> = {
+    'intent-classification': 'classification',
+    'quick-summary': 'summary',
+    'tag-generation': 'classification',
+  };
+  
+  try {
+    const result = await localModelManager.infer({
+      modelId,
+      task: taskCapabilityMap[request.taskType] || 'classification',
+      input: request.input,
+      options: request.options,
+    });
+    
+    return {
+      success: true,
+      output: result.output,
+      latencyMs: Date.now() - start,
+      fallback: null,
+      model: `local-model:${modelId}`,
+    };
+  } catch (e) {
+    console.warn('[LocalInference] Local model inference failed:', e);
+    return null;
+  }
 }
 
 export async function inferLocal(request: LocalInferenceRequest): Promise<LocalInferenceResult> {
@@ -92,7 +176,13 @@ export async function inferLocal(request: LocalInferenceRequest): Promise<LocalI
     await initializeLocalInference();
   }
   
-  // Check if local inference is feasible
+  // Try real local model first if available
+  const localModelResult = await tryLocalModelInference(request);
+  if (localModelResult && localModelResult.success) {
+    return localModelResult;
+  }
+  
+  // Check if local inference is feasible (for fallback keyword classifier)
   if (!hardware || !canRunLocalModel(hardware)) {
     return {
       success: false,
