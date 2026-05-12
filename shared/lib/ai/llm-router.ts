@@ -132,6 +132,9 @@ export async function routeAndCall(
   // Record cost if available
   recordCostAsync(taskType, selectedModelId, selectedProviderId, result.usage, true);
 
+  // Auto-trigger cost alert check
+  triggerCostAlertCheck();
+
   return {
     text: result.text,
     modelId: selectedModelId,
@@ -172,6 +175,22 @@ function recordCostAsync(
     });
   }).catch(() => {
     // Cost tracker not available
+  });
+}
+
+/**
+ * Trigger cost alert check asynchronously
+ */
+function triggerCostAlertCheck(): void {
+  if (typeof window === 'undefined') return; // Only run in browser
+  
+  import('./cost-alert').then(({ getCostAlertService }) => {
+    const service = getCostAlertService();
+    service.checkAndAlert().catch(() => {
+      // Silently fail
+    });
+  }).catch(() => {
+    // Cost alert module not available
   });
 }
 
