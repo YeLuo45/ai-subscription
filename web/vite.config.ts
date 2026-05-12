@@ -159,6 +159,9 @@ export default defineConfig({
       },
     },
   ],
+  worker: {
+    format: 'es',
+  },
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, '../shared'),
