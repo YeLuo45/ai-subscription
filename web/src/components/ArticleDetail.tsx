@@ -5,11 +5,12 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal, Button, Space, Typography, Divider, Switch, message } from 'antd';
-import { GlobalOutlined, EditOutlined, ApartmentOutlined, RobotOutlined } from '@ant-design/icons';
+import { GlobalOutlined, EditOutlined, ApartmentOutlined, RobotOutlined, DashboardOutlined } from '@ant-design/icons';
 import { LanguageBadge } from './LanguageBadge';
 import { KnowledgeGraphPanel } from './KnowledgeGraphPanel';
 import { ArticleProcessResult, type ArticleProcessResult } from './article/ArticleProcessResult';
 import { PipelineUI, type PipelineUIState } from './pipeline/PipelineUI';
+import { PipelineDashboard } from './pipeline/PipelineDashboard';
 import { useTranslation } from '../hooks/useTranslation';
 import { detectLanguage, type Language } from '../lib/languageDetect';
 import { runPipeline, type PipelineEvent } from '../services/pipeline/pipeline';
@@ -38,6 +39,7 @@ type PipelineState = 'idle' | 'running' | 'done';
 export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onClose }) => {
   const [showTranslation, setShowTranslation] = useState(false);
   const [knowledgeGraphOpen, setKnowledgeGraphOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
   const [pipelineState, setPipelineState] = useState<PipelineState>('idle');
   const [processResult, setProcessResult] = useState<ArticleProcessResult | null>(null);
   const [pipelineUIState, setPipelineUIState] = useState<PipelineUIState | null>(null);
@@ -55,6 +57,7 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onC
       clearTranslation();
       setShowTranslation(false);
       setKnowledgeGraphOpen(false);
+      setDashboardOpen(false);
       setPipelineState('idle');
       setProcessResult(null);
       setPipelineUIState(null);
@@ -262,6 +265,12 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onC
           >
             AI处理
           </Button>
+          <Button
+            icon={<DashboardOutlined />}
+            onClick={() => setDashboardOpen(true)}
+          >
+            Dashboard
+          </Button>
         </Space>
       }
     >
@@ -339,6 +348,12 @@ export const ArticleDetail: React.FC<ArticleDetailProps> = ({ article, open, onC
       article={article}
       open={knowledgeGraphOpen}
       onClose={() => setKnowledgeGraphOpen(false)}
+    />
+
+    {/* Pipeline Dashboard */}
+    <PipelineDashboard
+      open={dashboardOpen}
+      onClose={() => setDashboardOpen(false)}
     />
     </>
   );
