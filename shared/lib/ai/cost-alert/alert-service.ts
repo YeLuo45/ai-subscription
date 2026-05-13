@@ -81,7 +81,7 @@ function createNotificationMessage(
   return `${typeText}成本${statusText}: ${alert.name} 已使用 ${alert.percent.toFixed(1)}% ($${alert.current.toFixed(4)} / $${(alert.threshold / 100).toFixed(2)})`;
 }
 
-class CostAlertService {
+export class CostAlertService {
   private initialized = false;
 
   async init(): Promise<void> {
