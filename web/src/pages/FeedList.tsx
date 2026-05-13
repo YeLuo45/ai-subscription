@@ -75,12 +75,13 @@ import Recommendations from './Recommendations';
 import NoteEditor from '../components/NoteEditor';
 import SearchPage from './Search';
 import Stats from './Stats';
+import { FeedCategoryPanel } from '../services/feed-category/FeedCategoryPanel';
 import { I18nContext } from '../i18n';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats' | 'category';
 
 export default function App() {
   const { t, locale, setLocale } = useContext(I18nContext);
@@ -208,6 +209,7 @@ export default function App() {
     { key: 'recommendations', icon: <StarOutlined />, label: t('sidebar.recommendations') },
     { key: 'search', icon: <SearchOutlined />, label: t('sidebar.search') },
     { key: 'stats', icon: <BarChartOutlined />, label: '统计' },
+    { key: 'category', icon: <FolderOutlined />, label: '智能分类' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -1209,6 +1211,7 @@ export default function App() {
           {activeMenu === 'recommendations' && <Recommendations />}
           {activeMenu === 'search' && <SearchPage />}
           {activeMenu === 'stats' && <Stats />}
+          {activeMenu === 'category' && <FeedCategoryPanel />}
         </Content>
       </Layout>
 

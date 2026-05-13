@@ -17,6 +17,10 @@ import {
   savePushHistory,
 } from './storage';
 import { processArticleForRules } from './WorkflowEngine';
+import { getFeedCategoryService } from '../../../shared/lib/ai/feed-category';
+
+// Track which feeds have been analyzed to avoid re-analyzing every time
+const analyzedFeeds = new Set<string>();
 
 let fetchTimer: number | null = null;
 let onUpdateCallback: (() => void) | undefined;
@@ -53,11 +57,32 @@ async function fetchSubscription(sub: Subscription): Promise<number> {
 
     // Update last fetched time
     await updateSubscription({ ...sub, lastFetchedAt: new Date().toISOString() });
+
+    // Analyze feed category if new articles were fetched and not yet analyzed
+    if (newCount > 0 && !analyzedFeeds.has(sub.id)) {
+      analyzedFeeds.add(sub.id);
+      analyzeFeedCategoryAsync(sub, articles);
+    }
+
     return newCount;
   } catch (err) {
     console.error(`Failed to fetch ${sub.name}:`, err);
     notifyError(`${sub.name} 抓取失败: ${err instanceof Error ? err.message : String(err)}`);
     return 0;
+  }
+}
+
+/**
+ * Analyze feed category using AI (non-blocking)
+ */
+async function analyzeFeedCategoryAsync(sub: Subscription, articles: { title: string }[]): Promise<void> {
+  try {
+    const service = getFeedCategoryService();
+    const recentTitles = articles.slice(0, 10).map(a => a.title);
+    await service.analyzeFeed(sub.url, sub.name, recentTitles, sub.id);
+    console.log(`Feed category analyzed for: ${sub.name}`);
+  } catch (err) {
+    console.error(`Failed to analyze feed category for ${sub.name}:`, err);
   }
 }
 
