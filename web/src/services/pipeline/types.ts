@@ -40,6 +40,17 @@ export interface TranslationResult {
 }
 
 /**
+ * Critic score result
+ */
+export interface CriticScore {
+  overall: number;
+  accuracy: number;
+  coherence: number;
+  relevance: number;
+  details: string;
+}
+
+/**
  * Pipeline event types for streaming output
  */
 export type PipelineEvent =
@@ -48,6 +59,7 @@ export type PipelineEvent =
   | { type: 'summary_delta'; data: SummaryResult }
   | { type: 'tag_delta'; data: TagResult }
   | { type: 'translation_delta'; data: TranslationResult }
+  | { type: 'critic_delta'; data: CriticScore }
   | { type: 'agent_end'; agent: string }
   | { type: 'done' }
   | { type: 'error'; error: string };

@@ -2,18 +2,29 @@
 
 import React, { useState, useCallback } from 'react';
 
+export interface CriticScore {
+  overall: number;
+  accuracy: number;
+  coherence: number;
+  relevance: number;
+  details: string;
+}
+
 export interface PipelineEvent {
-  type: 'agent_start' | 'extraction_delta' | 'summary_delta' | 'tag_delta' | 'translation_delta' | 'agent_end' | 'done' | 'error';
+  type: 'agent_start' | 'extraction_delta' | 'summary_delta' | 'tag_delta' | 'translation_delta' | 'critic_delta' | 'agent_end' | 'done' | 'error';
   agent?: string;
   delta?: string;
   tags?: string[];
   message?: string;
+  data?: CriticScore;
+  error?: string;
 }
 
 export interface StageState {
   status: 'pending' | 'running' | 'done' | 'error';
   content: string;
   tags?: string[];
+  fallback?: boolean; // Indicates if fallback was used
 }
 
 export interface PipelineUIState {
@@ -24,6 +35,7 @@ export interface PipelineUIState {
     tag: StageState;
     translate: StageState;
   };
+  criticScore?: CriticScore;
   error?: string;
 }
 
@@ -113,15 +125,23 @@ export function PipelineUI({ articleId, onProcess, initialState: initial }: Pipe
               };
               break;
               
+            case 'critic_delta':
+              if (event.data) {
+                next.criticScore = event.data;
+              }
+              break;
+              
             case 'agent_end':
-              if (event.agent === 'ExtractorAgent') {
+              if (event.agent === 'ExtractorAgent' || event.agent === 'extractor') {
                 next.stages = { ...next.stages, extract: { ...next.stages.extract, status: 'done' } };
-              } else if (event.agent === 'SummarizerAgent') {
+              } else if (event.agent === 'SummarizerAgent' || event.agent === 'summarizer') {
                 next.stages = { ...next.stages, summarize: { ...next.stages.summarize, status: 'done' } };
-              } else if (event.agent === 'TaggerAgent') {
+              } else if (event.agent === 'TaggerAgent' || event.agent === 'tagger' || event.agent === 'parallel_tagger_translator') {
                 next.stages = { ...next.stages, tag: { ...next.stages.tag, status: 'done' } };
-              } else if (event.agent === 'TranslatorAgent') {
+              } else if (event.agent === 'TranslatorAgent' || event.agent === 'translator') {
                 next.stages = { ...next.stages, translate: { ...next.stages.translate, status: 'done' } };
+              } else if (event.agent === 'critic') {
+                // Critic agent completion is handled via critic_delta
               }
               break;
               
@@ -279,6 +299,88 @@ export function PipelineUI({ articleId, onProcess, initialState: initial }: Pipe
       {state.status === 'completed' && (
         <div className="mt-4 p-3 bg-green-900/50 border border-green-500 rounded text-green-300 text-sm">
           处理完成 ✓
+        </div>
+      )}
+
+      {/* Critic Score Section */}
+      {state.criticScore && (
+        <div className="mt-4 p-3 bg-purple-900/50 border border-purple-500 rounded">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-purple-400">📊</span>
+            <span className="font-medium text-purple-300">质量评估</span>
+            <span className={`ml-auto px-2 py-0.5 rounded text-xs font-medium ${
+              state.criticScore.overall >= 70
+                ? 'bg-green-600 text-white'
+                : state.criticScore.overall >= 50
+                ? 'bg-yellow-600 text-white'
+                : 'bg-red-600 text-white'
+            }`}>
+              {state.criticScore.overall.toFixed(0)}分
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="text-center">
+              <div className="text-gray-400">准确性</div>
+              <div className={`font-medium ${
+                state.criticScore.accuracy >= 70 ? 'text-green-400' : state.criticScore.accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'
+              }`}>
+                {state.criticScore.accuracy.toFixed(0)}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-gray-400">连贯性</div>
+              <div className={`font-medium ${
+                state.criticScore.coherence >= 70 ? 'text-green-400' : state.criticScore.coherence >= 50 ? 'text-yellow-400' : 'text-red-400'
+              }`}>
+                {state.criticScore.coherence.toFixed(0)}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-gray-400">相关性</div>
+              <div className={`font-medium ${
+                state.criticScore.relevance >= 70 ? 'text-green-400' : state.criticScore.relevance >= 50 ? 'text-yellow-400' : 'text-red-400'
+              }`}>
+                {state.criticScore.relevance.toFixed(0)}
+              </div>
+            </div>
+          </div>
+          {state.criticScore.overall < 50 && (
+            <div className="mt-2 text-xs text-yellow-400 flex items-center gap-1">
+              <span>⚠️</span>
+              <span>质量低于阈值，可能存在错误，建议人工复核</span>
+            </div>
+          )}
+          {state.criticScore.overall >= 50 && state.criticScore.overall < 70 && (
+            <div className="mt-2 text-xs text-yellow-300 flex items-center gap-1">
+              <span>ℹ️</span>
+              <span>{state.criticScore.details}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fallback Indicators */}
+      {(state.stages.extract.fallback || state.stages.summarize.fallback || 
+        state.stages.tag.fallback || state.stages.translate.fallback) && (
+        <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-600 rounded">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-yellow-400">🔄</span>
+            <span className="font-medium text-yellow-300">使用备用方案</span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {state.stages.extract.fallback && (
+              <span className="px-2 py-1 bg-yellow-600/50 rounded">内容提取</span>
+            )}
+            {state.stages.summarize.fallback && (
+              <span className="px-2 py-1 bg-yellow-600/50 rounded">智能摘要</span>
+            )}
+            {state.stages.tag.fallback && (
+              <span className="px-2 py-1 bg-yellow-600/50 rounded">标签生成</span>
+            )}
+            {state.stages.translate.fallback && (
+              <span className="px-2 py-1 bg-yellow-600/50 rounded">翻译</span>
+            )}
+          </div>
         </div>
       )}
     </div>
