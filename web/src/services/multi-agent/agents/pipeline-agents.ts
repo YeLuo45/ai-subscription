@@ -4,27 +4,35 @@
  * Extends SpecialistAgent abstract class for unified task execution interface
  */
 
-import { SpecialistAgent, type SpecialistConfig } from './SpecialistAgent';
-import type { AgentId, AgentRole } from '../types';
-import { AgentRole as Role, AgentStatus } from './types';
+import { SpecialistAgent } from './SpecialistAgent';
+import type { SpecialistConfig } from './SpecialistAgent';
+import { AgentStatus, AgentRole } from './types';
 
-// Re-export result types
-export type { ExtractionResult, SummaryResult, TagResult, TranslationResult } from './ExtractorAgent';
+// Re-export result types from individual agents
+export type { ExtractionResult } from './ExtractorAgent';
 export type { SummaryResult } from './SummarizerAgent';
 export type { TagResult } from './TaggerAgent';
 export type { TranslationResult, Language } from './TranslatorAgent';
 
 /**
- * Create agent ID helper
- */
-function createAgentId(role: AgentRole, name: string): AgentId {
-  return { id: `${role}_${name}`, role, name };
-}
-
-/**
  * Pipeline Agent Types
  */
 export type PipelineAgentType = 'extractor' | 'summarizer' | 'tagger' | 'translator';
+
+/**
+ * Default agent configuration factory
+ */
+function createDefaultConfig(id: string, name: string, specialty: string, capabilities: string[]): SpecialistConfig {
+  return {
+    id,
+    name,
+    role: AgentRole.SPECIALIST,
+    specialty,
+    capabilities,
+    maxRetries: 3,
+    timeout: 30000,
+  };
+}
 
 /**
  * Extractor Agent
@@ -33,14 +41,10 @@ export type PipelineAgentType = 'extractor' | 'summarizer' | 'tagger' | 'transla
 export class ExtractorPipelineAgent extends SpecialistAgent {
   private maxContentLength: number;
 
-  constructor(config: SpecialistConfig & { maxContentLength?: number } = {}) {
-    super({
-      ...config,
-      id: config.id || 'extractor',
-      name: config.name || 'Extractor',
-      capabilities: [...(config.capabilities || []), 'extraction'],
-    });
-    this.maxContentLength = config.maxContentLength ?? 4000;
+  constructor(config?: { maxContentLength?: number }) {
+    const maxContentLength = config?.maxContentLength ?? 4000;
+    super(createDefaultConfig('extractor', 'Extractor', 'extraction', ['extraction']));
+    this.maxContentLength = maxContentLength;
   }
 
   /**
@@ -91,14 +95,10 @@ export class ExtractorPipelineAgent extends SpecialistAgent {
 export class SummarizerPipelineAgent extends SpecialistAgent {
   private maxKeyPoints: number;
 
-  constructor(config: SpecialistConfig & { maxKeyPoints?: number } = {}) {
-    super({
-      ...config,
-      id: config.id || 'summarizer',
-      name: config.name || 'Summarizer',
-      capabilities: [...(config.capabilities || []), 'summarization'],
-    });
-    this.maxKeyPoints = config.maxKeyPoints ?? 5;
+  constructor(config?: { maxKeyPoints?: number }) {
+    const maxKeyPoints = config?.maxKeyPoints ?? 5;
+    super(createDefaultConfig('summarizer', 'Summarizer', 'summarization', ['summarization']));
+    this.maxKeyPoints = maxKeyPoints;
   }
 
   /**
@@ -159,14 +159,10 @@ export class SummarizerPipelineAgent extends SpecialistAgent {
 export class TaggerPipelineAgent extends SpecialistAgent {
   private maxTags: number;
 
-  constructor(config: SpecialistConfig & { maxTags?: number } = {}) {
-    super({
-      ...config,
-      id: config.id || 'tagger',
-      name: config.name || 'Tagger',
-      capabilities: [...(config.capabilities || []), 'tagging'],
-    });
-    this.maxTags = config.maxTags ?? 3;
+  constructor(config?: { maxTags?: number }) {
+    const maxTags = config?.maxTags ?? 3;
+    super(createDefaultConfig('tagger', 'Tagger', 'tagging', ['tagging']));
+    this.maxTags = maxTags;
   }
 
   /**
@@ -247,14 +243,10 @@ export class TranslatorPipelineAgent extends SpecialistAgent {
     ZH: '中文', EN: '英文', JA: '日文', KO: '韩文', FR: '法文', DE: '德文', ES: '西班牙文',
   };
 
-  constructor(config: SpecialistConfig & { defaultTargetLang?: 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES' } = {}) {
-    super({
-      ...config,
-      id: config.id || 'translator',
-      name: config.name || 'Translator',
-      capabilities: [...(config.capabilities || []), 'translation'],
-    });
-    this.defaultTargetLang = config.defaultTargetLang ?? 'EN';
+  constructor(config?: { defaultTargetLang?: 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES' }) {
+    const defaultTargetLang = config?.defaultTargetLang ?? 'EN';
+    super(createDefaultConfig('translator', 'Translator', 'translation', ['translation']));
+    this.defaultTargetLang = defaultTargetLang;
   }
 
   /**
@@ -302,20 +294,20 @@ export class TranslatorPipelineAgent extends SpecialistAgent {
 /**
  * Factory functions to create pipeline agents
  */
-export function createExtractorAgent(config?: SpecialistConfig & { maxContentLength?: number }): ExtractorPipelineAgent {
+export function createExtractorAgent(config?: { maxContentLength?: number }): ExtractorPipelineAgent {
   return new ExtractorPipelineAgent(config);
 }
 
-export function createSummarizerAgent(config?: SpecialistConfig & { maxKeyPoints?: number }): SummarizerPipelineAgent {
+export function createSummarizerAgent(config?: { maxKeyPoints?: number }): SummarizerPipelineAgent {
   return new SummarizerPipelineAgent(config);
 }
 
-export function createTaggerAgent(config?: SpecialistConfig & { maxTags?: number }): TaggerPipelineAgent {
+export function createTaggerAgent(config?: { maxTags?: number }): TaggerPipelineAgent {
   return new TaggerPipelineAgent(config);
 }
 
 export function createTranslatorAgent(
-  config?: SpecialistConfig & { defaultTargetLang?: 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES' }
+  config?: { defaultTargetLang?: 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES' }
 ): TranslatorPipelineAgent {
   return new TranslatorPipelineAgent(config);
 }
