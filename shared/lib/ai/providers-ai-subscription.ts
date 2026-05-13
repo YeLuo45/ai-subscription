@@ -21,11 +21,30 @@ export type TaskType =
 // Model cost rank (1=cheapest, 3=most expensive)
 export type CostRank = 1 | 2 | 3;
 
+// Routing condition for fine-grained model selection
+export interface RoutingCondition {
+  // Content-based conditions
+  minContentLength?: number;   // Minimum content length in characters
+  maxContentLength?: number;   // Maximum content length in characters
+  requiresVision?: boolean;     // Content requires vision capability
+  
+  // Quality vs Speed preference
+  // 'speed' - prefer low latency models
+  // 'quality' - prefer high accuracy models  
+  // 'balanced' - balance between speed and quality
+  preference?: 'speed' | 'quality' | 'balanced';
+  
+  // Provider preference (higher = more preferred)
+  // Can be used to prefer certain providers over others
+  providerPriority?: Record<string, number>;
+}
+
 // Extended model info with routing metadata
 export interface RouterModelInfo extends ModelInfo {
   taskTypes: TaskType[];
   costRank: CostRank;
   recommendedFor?: string[];  // Specific use cases where this model excels
+  routingCondition?: RoutingCondition; // Optional condition for model selection
 }
 
 // Provider config with routing support
@@ -56,6 +75,10 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         taskTypes: ['structured-summary', 'tag-generation', 'chat', 'push-strategy'],
         costRank: 3,
         recommendedFor: ['multi-dimensional-output', 'high-accuracy-tags'],
+        routingCondition: {
+          preference: 'quality',
+          requiresVision: true,
+        },
       },
       {
         id: 'gpt-4o-mini',
@@ -65,6 +88,9 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         taskTypes: ['quick-summary', 'translation'],
         costRank: 1,
         recommendedFor: ['low-latency', 'cost-sensitive'],
+        routingCondition: {
+          preference: 'speed',
+        },
       },
     ],
   },
@@ -87,6 +113,9 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         taskTypes: ['standard-summary', 'structured-summary'],
         costRank: 2,
         recommendedFor: ['structured-output', 'reasoning'],
+        routingCondition: {
+          preference: 'balanced',
+        },
       },
       {
         id: 'claude-3-5-sonnet-20241022',
@@ -96,6 +125,9 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         taskTypes: ['standard-summary', 'structured-summary', 'chat', 'push-strategy'],
         costRank: 2,
         recommendedFor: ['balanced-performance'],
+        routingCondition: {
+          preference: 'balanced',
+        },
       },
     ],
   },
@@ -116,6 +148,10 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         taskTypes: ['translation', 'quick-summary', 'intent-classification'],
         costRank: 1,
         recommendedFor: ['high-volume', 'low-latency', 'cost-effective'],
+        routingCondition: {
+          preference: 'speed',
+          maxContentLength: 100000,
+        },
       },
       {
         id: 'gemini-2.5-pro-preview-06-05',
@@ -125,6 +161,10 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
         taskTypes: ['knowledge-graph', 'standard-summary', 'structured-summary', 'push-strategy'],
         costRank: 2,
         recommendedFor: ['deep-understanding', 'entity-extraction'],
+        routingCondition: {
+          preference: 'quality',
+          maxContentLength: 200000,
+        },
       },
     ],
   },
@@ -135,11 +175,68 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
 // ============================================================
 
 /**
- * Find the best model for a given task type
+ * Score a model for a given task based on conditions
+ * Returns a score where higher is better (0 means incompatible)
+ */
+function scoreModelForConditions(
+  model: RouterModelInfo,
+  conditions?: RoutingCondition
+): number {
+  if (!conditions) return 1; // No conditions = neutral score
+
+  const condition = model.routingCondition;
+  if (!condition) return 0.5; // Model without conditions gets neutral score
+
+  let score = 1.0;
+
+  // Check content length constraints
+  if (conditions.minContentLength !== undefined && condition.maxContentLength !== undefined) {
+    if (conditions.minContentLength > condition.maxContentLength) {
+      return 0; // Incompatible - requested min exceeds model max
+    }
+  }
+
+  if (conditions.maxContentLength !== undefined && condition.minContentLength !== undefined) {
+    if (conditions.maxContentLength < condition.minContentLength) {
+      return 0; // Incompatible - requested max below model min
+    }
+  }
+
+  // Check vision requirement
+  if (conditions.requiresVision && !model.capabilities.vision) {
+    return 0; // Incompatible - model doesn't support vision
+  }
+
+  // Score based on preference match
+  if (conditions.preference && condition.preference) {
+    if (conditions.preference === condition.preference) {
+      score += 0.5; // Exact match bonus
+    } else if (
+      (conditions.preference === 'balanced' && condition.preference !== 'balanced') ||
+      (conditions.preference !== 'balanced' && condition.preference === 'balanced')
+    ) {
+      score += 0.2; // Partial match
+    }
+  }
+
+  // Provider priority bonus
+  if (conditions.providerPriority) {
+    const providerId = model.taskTypes.length > 0 ? Object.keys(conditions.providerPriority)[0] : undefined;
+    if (providerId && conditions.providerPriority[providerId]) {
+      score += conditions.providerPriority[providerId] * 0.1;
+    }
+  }
+
+  return score;
+}
+
+/**
+ * Find the best model for a given task type with optional conditions
  */
 export function findModelForTask(
   taskType: TaskType,
-  preferredProvider?: ProviderId
+  preferredProvider?: ProviderId,
+  conditions?: RoutingCondition
 ): { providerId: string; modelId: string; model: RouterModelInfo } | null {
   // If preferred provider specified, try that first
   if (preferredProvider) {
@@ -147,20 +244,33 @@ export function findModelForTask(
     if (provider) {
       const model = provider.models.find(m => m.taskTypes.includes(taskType));
       if (model) {
-        return { providerId: provider.id, modelId: model.id, model };
+        const score = scoreModelForConditions(model, conditions);
+        if (score > 0) {
+          return { providerId: provider.id, modelId: model.id, model };
+        }
       }
     }
   }
 
   // Search all providers for matching model
+  // Keep track of best scored model
+  let bestMatch: { providerId: string; modelId: string; model: RouterModelInfo; score: number } | null = null;
+
   for (const [providerId, provider] of Object.entries(AI_SUBSCRIPTION_PROVIDERS)) {
     const model = provider.models.find(m => m.taskTypes.includes(taskType));
     if (model) {
-      return { providerId, modelId: model.id, model };
+      const score = scoreModelForConditions(model, conditions);
+      if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+        bestMatch = { providerId, modelId: model.id, model, score };
+      }
     }
   }
 
-  return null;
+  return bestMatch ? { 
+    providerId: bestMatch.providerId, 
+    modelId: bestMatch.modelId, 
+    model: bestMatch.model 
+  } : null;
 }
 
 /**

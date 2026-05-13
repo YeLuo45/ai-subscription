@@ -6,7 +6,8 @@
 import { 
   findModelForTask, 
   getFallbackChain,
-  type TaskType 
+  type TaskType,
+  type RoutingCondition 
 } from '@shared/lib/ai/providers-ai-subscription';
 
 // Routing decision log for debugging and monitoring
@@ -230,4 +231,101 @@ export async function routeTask<T>(
 
   // All models failed
   throw lastError || new Error('All models failed for task: ' + taskType);
+}
+
+/**
+ * Route and execute a task with conditional routing
+ * Takes conditions into account for model selection
+ */
+export async function routeTaskWithConditions<T>(
+  taskType: TaskType,
+  content: string,
+  executor: (modelId: string, providerId: string) => Promise<T>,
+  conditions: RoutingCondition,
+  explicitTaskType?: TaskType
+): Promise<{ result: T; decision: RoutingDecision }> {
+  // Analyze content to determine task type
+  const determinedTaskType = analyzeTaskType(content, explicitTaskType);
+  
+  // Build conditions with content length
+  const fullConditions: RoutingCondition = {
+    ...conditions,
+    minContentLength: conditions.minContentLength ?? 0,
+    maxContentLength: conditions.maxContentLength ?? content.length,
+  };
+
+  // Find model using conditions
+  const modelInfo = findModelForTask(determinedTaskType, undefined, fullConditions);
+  
+  let modelId: string;
+  let providerId: string;
+  let reasoning: string;
+
+  if (modelInfo) {
+    modelId = modelInfo.modelId;
+    providerId = modelInfo.providerId;
+    reasoning = `Conditional routing for ${determinedTaskType}: ${modelInfo.model.id} (${modelInfo.model.routingCondition?.preference || 'default'})`;
+  } else {
+    // Fallback to standard selection
+    const selected = selectModel(determinedTaskType, content.length);
+    modelId = selected.modelId;
+    providerId = selected.providerId;
+    reasoning = selected.reasoning + ' (conditional routing fallback)';
+  }
+
+  // Get fallback chain
+  const fallbackChain = getModelFallbackChain(determinedTaskType);
+  let lastError: Error | undefined;
+
+  // Try with primary model first
+  try {
+    const result = await executor(modelId, providerId);
+    
+    const decision: RoutingDecision = {
+      taskType: determinedTaskType,
+      selectedModel: modelId,
+      selectedProvider: providerId,
+      contentLength: content.length,
+      reasoning,
+      timestamp: Date.now(),
+      fallbackAttempted: false,
+    };
+    
+    logRoutingDecision(decision);
+    return { result, decision };
+  } catch (error) {
+    lastError = error instanceof Error ? error : new Error(String(error));
+    console.warn(`[Router] Conditional model ${providerId}/${modelId} failed: ${lastError.message}`);
+  }
+
+  // Try fallback models
+  for (const fallback of fallbackChain) {
+    if (fallback.modelId === modelId && fallback.providerId === providerId) {
+      continue; // Skip primary model
+    }
+
+    try {
+      const result = await executor(fallback.modelId, fallback.providerId);
+      
+      const decision: RoutingDecision = {
+        taskType: determinedTaskType,
+        selectedModel: fallback.modelId,
+        selectedProvider: fallback.providerId,
+        contentLength: content.length,
+        reasoning: `${reasoning} → Fallback to ${fallback.modelId}`,
+        timestamp: Date.now(),
+        fallbackAttempted: true,
+        fallbackModel: fallback.modelId,
+      };
+      
+      logRoutingDecision(decision);
+      return { result, decision };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`[Router] Fallback model ${fallback.providerId}/${fallback.modelId} failed: ${lastError.message}`);
+    }
+  }
+
+  // All models failed
+  throw lastError || new Error('All models failed for conditional task: ' + taskType);
 }

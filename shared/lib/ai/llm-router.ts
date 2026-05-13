@@ -5,7 +5,7 @@
 
 import { callLLM } from './llm';
 import type { SimpleMessage, ThinkingConfig } from './types/provider';
-import { AI_SUBSCRIPTION_PROVIDERS, findModelForTask, type TaskType } from './providers-ai-subscription';
+import { AI_SUBSCRIPTION_PROVIDERS, findModelForTask, type TaskType, type RoutingCondition } from './providers-ai-subscription';
 
 // Re-export TaskType for convenience
 export { type TaskType } from './providers-ai-subscription';
@@ -66,6 +66,7 @@ export interface RouteAndCallOptions {
   apiKey?: string;
   schema?: any;            // Optional output schema for structured response
   thinking?: ThinkingConfig; // Override thinking config
+  conditions?: RoutingCondition; // Optional routing conditions for conditional selection
 }
 
 /**
@@ -88,6 +89,7 @@ export async function routeAndCall(
     maxTokens = 4000,
     apiKey,
     schema,
+    conditions,
   } = options;
 
   // Determine which model to use
@@ -98,7 +100,7 @@ export async function routeAndCall(
     selectedModelId = explicitModel;
     selectedProviderId = explicitProvider;
   } else {
-    const modelInfo = findModelForTask(taskType);
+    const modelInfo = findModelForTask(taskType, undefined, conditions);
     if (!modelInfo) {
       throw new Error(`No model found for task type: ${taskType}`);
     }
