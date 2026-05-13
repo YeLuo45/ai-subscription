@@ -80,3 +80,7 @@ export { TranslatorAgent } from './agents/TranslatorAgent';
 // Content Pipeline Team
 export { ContentPipelineTeam, createContentPipelineTeam } from './teams/content-pipeline-team';
 export type { PipelineTeamConfig, PipelineTeamResult } from './teams/content-pipeline-team';
+
+// Agent Registry
+export { AgentRegistry, getAgentRegistry } from './agent-registry';
+export type { CustomAgentDefinition } from './agent-registry';

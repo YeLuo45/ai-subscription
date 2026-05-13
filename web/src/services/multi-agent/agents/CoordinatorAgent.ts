@@ -6,10 +6,12 @@
 import { BaseAgent } from './BaseAgent';
 import type { AgentConfig, AgentMessage, AgentResult, AgentTask } from './types';
 import { AgentRole, AgentStatus } from './types';
+import { AgentRegistry } from './agent-registry';
 
 export interface CoordinatorConfig extends AgentConfig {
   maxConcurrentTasks?: number;
   taskTimeout?: number;
+  registry?: AgentRegistry;
 }
 
 export class CoordinatorAgent extends BaseAgent {
@@ -18,6 +20,7 @@ export class CoordinatorAgent extends BaseAgent {
   private taskQueue: string[] = [];
   private maxConcurrentTasks: number;
   private taskTimeout: number;
+  private registry?: AgentRegistry;
 
   constructor(config: CoordinatorConfig) {
     super({
@@ -26,6 +29,26 @@ export class CoordinatorAgent extends BaseAgent {
     });
     this.maxConcurrentTasks = config.maxConcurrentTasks ?? 4;
     this.taskTimeout = config.taskTimeout ?? 60000;
+    this.registry = config.registry;
+  }
+
+  /**
+   * Set agent registry
+   */
+  setRegistry(registry: AgentRegistry): void {
+    this.registry = registry;
+  }
+
+  /**
+   * Find agent by capability - checks custom registry first
+   */
+  findAgentByCapability(capability: string): string | null {
+    // Check custom registry first
+    const customAgents = this.registry?.findByCapability(capability);
+    if (customAgents && customAgents.length > 0) {
+      return customAgents[0].id;
+    }
+    return null;
   }
 
   /**
