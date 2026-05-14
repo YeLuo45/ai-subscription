@@ -5,7 +5,7 @@ import { parseOPML } from '../services/opmlParser';
 import { exportOPML } from '../services/opmlExporter';
 import { exportAllData, downloadJSON } from '../services/backupExporter';
 import { importAllData } from '../services/backupImporter';
-import { getSubscriptions, saveSubscription } from '../services/storage';
+import { getSubscriptions, saveSubscription, exportPushHistory } from '../services/storage';
 
 const { Text } = Typography;
 
@@ -123,6 +123,27 @@ export default function ImportExportPanel() {
     if (jsonInputRef.current) jsonInputRef.current.value = '';
   }
 
+  // Reading History Export
+  async function handleExportHistory() {
+    try {
+      const history = await exportPushHistory();
+      if (history.length === 0) {
+        message.warning('暂无阅读历史可导出');
+        return;
+      }
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        type: 'reading-history',
+        history,
+      };
+      downloadJSON(data, `reading-history-${new Date().toISOString().slice(0,10)}.json`);
+      message.success(`已导出 ${history.length} 条阅读历史`);
+    } catch (err) {
+      message.error('导出阅读历史失败');
+    }
+  }
+
   return (
     <div style={{ padding: '16px 0' }}>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -162,6 +183,16 @@ export default function ImportExportPanel() {
             </Button>
             <Button icon={<DownloadOutlined />} onClick={handleExportJSON}>
               导出备份
+            </Button>
+          </Space>
+        </div>
+
+        {/* Reading History Export Section */}
+        <div>
+          <Text strong style={{ display: 'block', marginBottom: 8 }}>阅读历史</Text>
+          <Space wrap>
+            <Button icon={<DownloadOutlined />} onClick={handleExportHistory}>
+              导出阅读历史
             </Button>
           </Space>
         </div>

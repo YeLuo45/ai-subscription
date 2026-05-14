@@ -292,6 +292,19 @@ export async function getPushHistory(limit = 50): Promise<PushHistory[]> {
   });
 }
 
+export async function exportPushHistory(): Promise<PushHistory[]> {
+  const store = await getStore(STORES.pushHistory);
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => {
+      const history = (req.result as PushHistory[])
+        .sort((a, b) => new Date(b.pushedAt).getTime() - new Date(a.pushedAt).getTime());
+      resolve(history);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export async function savePushHistory(record: Omit<PushHistory, 'id'>): Promise<PushHistory> {
   const store = await getStore(STORES.pushHistory, 'readwrite');
   const full: PushHistory = { ...record, id: generateId() };
