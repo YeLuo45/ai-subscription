@@ -2,6 +2,7 @@
  * Pipeline Orchestration
  * AsyncGenerator-based streaming pipeline with MessageBus+ContextPool
  * for parallel agent execution and CriticAgent evaluation
+ * Includes enhanced error handling and retry mechanisms
  */
 
 import { decidePipeline, validatePipelineOptions, type PipelineOptions } from './director';
@@ -11,12 +12,24 @@ import { messageBus } from './messageBus';
 import { contextPool } from './contextPool';
 import type { PipelineEvent, PipelineArticle, ExtractionResult, CriticScore } from './types';
 import type { AgentResult } from './agents';
+import { withRetry, isRetryableError, calculateBackoffDelay, getCircuitBreaker, type RetryOptions } from '../../../../shared/lib/ai/error-handling';
 
 // Re-export critic agent creator
 export { createCriticAgent } from './criticAgent';
 
+/** Default retry options for pipeline agents */
+const DEFAULT_PIPELINE_RETRY_OPTIONS: Partial<RetryOptions> = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+  jitter: true,
+  jitterFactor: 0.1,
+};
+
 /**
  * Run the extraction agent with streaming output and ContextPool tracking
+ * Includes retry logic with exponential backoff
  */
 async function* runExtractor(
   article: PipelineArticle
@@ -25,19 +38,31 @@ async function* runExtractor(
   const context = contextPool.createContext('extractor');
   contextPool.updateContext(context.id, { status: 'running' });
 
+  const retryOptions = { ...DEFAULT_PIPELINE_RETRY_OPTIONS };
+
   try {
-    const result = await extractor(article.content);
+    const result = await withRetry(
+      async () => extractor(article.content),
+      {
+        ...retryOptions,
+        onRetry: (attempt, error, delayMs) => {
+          console.warn(`[Extractor] Retry attempt ${attempt}: ${error.message}`);
+        },
+      }
+    );
     contextPool.updateContext(context.id, { status: 'completed', result: result.data });
     await messageBus.publish('extraction_result', 'extractor', result.data);
     yield { type: 'extraction_delta', data: result.data };
   } catch (err) {
-    contextPool.updateContext(context.id, { status: 'failed', error: String(err) });
-    throw new Error(`Extractor failed: ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    contextPool.updateContext(context.id, { status: 'failed', error: errorMessage });
+    throw new Error(`Extractor failed: ${errorMessage}`);
   }
 }
 
 /**
  * Run the summarizer agent with streaming output and ContextPool tracking
+ * Includes retry logic with exponential backoff
  */
 async function* runSummarizer(
   article: PipelineArticle,
@@ -47,38 +72,62 @@ async function* runSummarizer(
   const context = contextPool.createContext('summarizer');
   contextPool.updateContext(context.id, { status: 'running' });
 
+  const retryOptions = { ...DEFAULT_PIPELINE_RETRY_OPTIONS };
+
   try {
-    const result = await summarizer(extraction);
+    const result = await withRetry(
+      async () => summarizer(extraction),
+      {
+        ...retryOptions,
+        onRetry: (attempt, error, delayMs) => {
+          console.warn(`[Summarizer] Retry attempt ${attempt}: ${error.message}`);
+        },
+      }
+    );
     contextPool.updateContext(context.id, { status: 'completed', result: result.data });
     await messageBus.publish('summary_result', 'summarizer', result.data);
     yield { type: 'summary_delta', data: result.data };
   } catch (err) {
-    contextPool.updateContext(context.id, { status: 'failed', error: String(err) });
-    throw new Error(`Summarizer failed: ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    contextPool.updateContext(context.id, { status: 'failed', error: errorMessage });
+    throw new Error(`Summarizer failed: ${errorMessage}`);
   }
 }
 
 /**
  * Run the tagger agent with streaming output and ContextPool tracking
+ * Includes retry logic with exponential backoff
  */
 async function* runTagger(article: PipelineArticle): AsyncGenerator<PipelineEvent> {
   const tagger = createTaggerAgent();
   const context = contextPool.createContext('tagger');
   contextPool.updateContext(context.id, { status: 'running' });
 
+  const retryOptions = { ...DEFAULT_PIPELINE_RETRY_OPTIONS };
+
   try {
-    const result = await tagger(article.content);
+    const result = await withRetry(
+      async () => tagger(article.content),
+      {
+        ...retryOptions,
+        onRetry: (attempt, error, delayMs) => {
+          console.warn(`[Tagger] Retry attempt ${attempt}: ${error.message}`);
+        },
+      }
+    );
     contextPool.updateContext(context.id, { status: 'completed', result: result.data });
     await messageBus.publish('tag_result', 'tagger', result.data);
     yield { type: 'tag_delta', data: result.data };
   } catch (err) {
-    contextPool.updateContext(context.id, { status: 'failed', error: String(err) });
-    throw new Error(`Tagger failed: ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    contextPool.updateContext(context.id, { status: 'failed', error: errorMessage });
+    throw new Error(`Tagger failed: ${errorMessage}`);
   }
 }
 
 /**
  * Run the translator agent with streaming output and ContextPool tracking
+ * Includes retry logic with exponential backoff
  */
 async function* runTranslator(
   article: PipelineArticle,
@@ -88,22 +137,34 @@ async function* runTranslator(
   const context = contextPool.createContext('translator');
   contextPool.updateContext(context.id, { status: 'running' });
 
+  const retryOptions = { ...DEFAULT_PIPELINE_RETRY_OPTIONS };
+
   try {
-    const result = await translator(
-      { title: article.title, description: article.description },
-      targetLang as 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES'
+    const result = await withRetry(
+      async () => translator(
+        { title: article.title, description: article.description },
+        targetLang as 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES'
+      ),
+      {
+        ...retryOptions,
+        onRetry: (attempt, error, delayMs) => {
+          console.warn(`[Translator] Retry attempt ${attempt}: ${error.message}`);
+        },
+      }
     );
     contextPool.updateContext(context.id, { status: 'completed', result: result.data });
     await messageBus.publish('translation_result', 'translator', result.data);
     yield { type: 'translation_delta', data: result.data };
   } catch (err) {
-    contextPool.updateContext(context.id, { status: 'failed', error: String(err) });
-    throw new Error(`Translator failed: ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    contextPool.updateContext(context.id, { status: 'failed', error: errorMessage });
+    throw new Error(`Translator failed: ${errorMessage}`);
   }
 }
 
 /**
  * Run the critic agent to evaluate pipeline results
+ * Includes retry logic with exponential backoff
  */
 async function runCritic(
   extraction?: ExtractionResult,
@@ -115,8 +176,18 @@ async function runCritic(
   const context = contextPool.createContext('critic');
   contextPool.updateContext(context.id, { status: 'running' });
 
+  const retryOptions = { ...DEFAULT_PIPELINE_RETRY_OPTIONS };
+
   try {
-    const result = await critic({ extraction, summary, tags, translation });
+    const result = await withRetry(
+      async () => critic({ extraction, summary, tags, translation }),
+      {
+        ...retryOptions,
+        onRetry: (attempt, error) => {
+          console.warn(`[Critic] Retry attempt ${attempt}: ${error.message}`);
+        },
+      }
+    );
     contextPool.updateContext(context.id, {
       status: 'completed',
       result: result.data,
@@ -125,8 +196,9 @@ async function runCritic(
     await messageBus.publish('critic_result', 'critic', result.data);
     return result;
   } catch (err) {
-    contextPool.updateContext(context.id, { status: 'failed', error: String(err) });
-    throw new Error(`Critic failed: ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    contextPool.updateContext(context.id, { status: 'failed', error: errorMessage });
+    throw new Error(`Critic failed: ${errorMessage}`);
   }
 }
 
@@ -150,9 +222,19 @@ async function* runParallelAgents(
       const context = contextPool.createContext('tagger');
       contextPool.updateContext(context.id, { status: 'running' });
 
+      const retryOptions = { ...DEFAULT_PIPELINE_RETRY_OPTIONS };
+
       try {
         const tagger = createTaggerAgent();
-        const result = await tagger(article.content);
+        const result = await withRetry(
+          async () => tagger(article.content),
+          {
+            ...retryOptions,
+            onRetry: (attempt, error) => {
+              console.warn(`[Tagger] Retry attempt ${attempt}: ${error.message}`);
+            },
+          }
+        );
         contextPool.updateContext(context.id, { status: 'completed', result: result.data });
         results.tag = result.data;
         await messageBus.publish('tag_result', 'tagger', result.data);
@@ -170,11 +252,21 @@ async function* runParallelAgents(
       const context = contextPool.createContext('translator');
       contextPool.updateContext(context.id, { status: 'running' });
 
+      const retryOptions = { ...DEFAULT_PIPELINE_RETRY_OPTIONS };
+
       try {
         const translator = createTranslatorAgent();
-        const result = await translator(
-          { title: article.title, description: article.description },
-          targetLang as 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES'
+        const result = await withRetry(
+          async () => translator(
+            { title: article.title, description: article.description },
+            targetLang as 'ZH' | 'EN' | 'JA' | 'KO' | 'FR' | 'DE' | 'ES'
+          ),
+          {
+            ...retryOptions,
+            onRetry: (attempt, error) => {
+              console.warn(`[Translator] Retry attempt ${attempt}: ${error.message}`);
+            },
+          }
         );
         contextPool.updateContext(context.id, { status: 'completed', result: result.data });
         results.translation = result.data;

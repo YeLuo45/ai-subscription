@@ -2,6 +2,7 @@
  * LLM - Core LLM calling interface
  * Wraps AI SDK (ai, @ai-sdk/openai, @ai-sdk/anthropic, @ai-sdk/google)
  * Provides callLLM / streamLLM with thinking config, retry, and provider abstraction
+ * Includes enhanced error handling with retry mechanisms and circuit breaker
  */
 
 import { generateText, streamText, type GenerateTextResult, type GenerateTextParams, type ProviderOptions } from 'ai';
@@ -15,6 +16,18 @@ import { runWithThinkingContext, createThinkingContext } from './thinking-contex
 import type { ToolName } from './types/tool';
 import { toolList } from './tools';
 import type { Tool } from 'ai';
+import {
+  withRetry,
+  isRetryableError,
+  calculateBackoffDelay,
+  getCircuitBreaker,
+  LLMError,
+  RateLimitError,
+  ServerError,
+  NetworkError,
+  TimeoutError,
+  type RetryOptions,
+} from './error-handling';
 
 // Re-export for convenience
 export { callLLM, streamLLM };
@@ -110,25 +123,72 @@ function buildThinkingProviderOptions(
 }
 
 // ============================================================
-// Retry Logic
+// Retry Logic - Enhanced with error-handling module
 // ============================================================
 
-const RETRYABLE_ERROR_CODES = new Set([
-  429, 500, 502, 503, 504
-]);
-
-function isRetryableError(err: unknown): boolean {
-  if (err && typeof err === 'object' && 'status' in err) {
-    return RETRYABLE_ERROR_CODES.has((err as any).status);
+/**
+ * Map HTTP status codes to appropriate error types
+ */
+function createErrorFromStatus(err: unknown, providerId: string, modelId: string): Error {
+  const status = (err as any)?.status || (err as any)?.statusCode;
+  
+  if (status === 429) {
+    const retryAfter = (err as any)?.headers?.['retry-after'];
+    const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : undefined;
+    return new RateLimitError(
+      err instanceof Error ? err.message : 'Rate limit exceeded',
+      providerId,
+      modelId,
+      retryAfterMs
+    );
   }
-  if (err && typeof err === 'object' && 'statusCode' in err) {
-    return RETRYABLE_ERROR_CODES.has((err as any).statusCode);
+  
+  if (status === 401 || status === 403) {
+    return new LLMError(
+      err instanceof Error ? err.message : 'Authentication failed',
+      providerId,
+      modelId,
+      status,
+      false // Not retryable
+    );
   }
-  return false;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  
+  if (status === 400) {
+    return new LLMError(
+      err instanceof Error ? err.message : 'Bad request',
+      providerId,
+      modelId,
+      status,
+      false // Not retryable
+    );
+  }
+  
+  if (status === 500 || status === 502 || status === 503 || status === 504) {
+    return new ServerError(
+      err instanceof Error ? err.message : 'Server error',
+      providerId,
+      modelId,
+      status
+    );
+  }
+  
+  // Generic network errors
+  if (err instanceof Error && /network|econnreset|econnrefused|socket/i.test(err.message)) {
+    return new NetworkError(err.message, true);
+  }
+  
+  // Generic timeout errors
+  if (err instanceof Error && /timeout|timed out/i.test(err.message)) {
+    return new TimeoutError(err.message, 30000);
+  }
+  
+  return new LLMError(
+    err instanceof Error ? err.message : String(err),
+    providerId,
+    modelId,
+    status,
+    isRetryableError(err) // Use the imported function
+  );
 }
 
 // ============================================================
@@ -188,28 +248,45 @@ async function callLLM(
     ...thinkingOptions,
   };
 
-  // Retry loop with exponential backoff
-  let lastError: Error | null = null;
-  const retries = retryOptions?.retries ?? 0;
-  const retryDelay = retryOptions?.retryDelayMs ?? 1000;
+  // Get circuit breaker for this provider
+  const circuitBreaker = getCircuitBreaker(`llm:${providerId}`);
+  
+  // Check circuit breaker before making request
+  if (!circuitBreaker.isAllowing()) {
+    const stats = circuitBreaker.getStats();
+    throw new Error(`Circuit breaker is OPEN for ${providerId}. Failure count: ${stats.failureCount}`);
+  }
 
   const context = createThinkingContext(source);
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await runWithThinkingContext(context, async () => {
-        return await generateText(options);
-      });
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < retries && isRetryableError(err)) {
-        await delay(Math.pow(2, attempt) * retryDelay);
-        continue;
-      }
-    }
+  // Use enhanced retry with circuit breaker
+  try {
+    return await circuitBreaker.execute(async () => {
+      return await withRetry(
+        async () => {
+          return await runWithThinkingContext(context, async () => {
+            return await generateText(options);
+          });
+        },
+        {
+          maxRetries: retryOptions?.retries ?? 3,
+          initialDelayMs: retryOptions?.retryDelayMs ?? 1000,
+          maxDelayMs: 30000,
+          backoffMultiplier: 2,
+          jitter: true,
+          jitterFactor: 0.1,
+          onRetry: (attempt, error, delayMs) => {
+            console.warn(`[callLLM] Retry ${attempt} for ${providerId}/${resolvedModelId} after ${delayMs}ms: ${error.message}`);
+          },
+        }
+      );
+    });
+  } catch (err) {
+    // Wrap error with provider context
+    const error = err instanceof Error ? err : new Error(String(err));
+    error.message = `[${providerId}/${resolvedModelId}] ${error.message}`;
+    throw error;
   }
-
-  throw lastError;
 }
 
 // ============================================================

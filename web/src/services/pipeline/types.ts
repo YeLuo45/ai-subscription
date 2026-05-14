@@ -51,6 +51,26 @@ export interface CriticScore {
 }
 
 /**
+ * Enhanced error info for pipeline events
+ */
+export interface PipelineErrorInfo {
+  /** Error message */
+  message: string;
+  /** Error code */
+  code?: string;
+  /** Whether the error is retryable */
+  retryable?: boolean;
+  /** Number of retry attempts made */
+  retryAttempts?: number;
+  /** The agent that caused the error */
+  agent?: string;
+  /** Error stage */
+  stage?: string;
+  /** Original error */
+  cause?: string;
+}
+
+/**
  * Pipeline event types for streaming output
  */
 export type PipelineEvent =
@@ -62,7 +82,10 @@ export type PipelineEvent =
   | { type: 'critic_delta'; data: CriticScore }
   | { type: 'agent_end'; agent: string }
   | { type: 'done' }
-  | { type: 'error'; error: string };
+  | { type: 'error'; error: string }
+  | { type: 'retry_attempt'; agent: string; attempt: number; delayMs: number }
+  | { type: 'circuit_open'; service: string }
+  | { type: 'circuit_close'; service: string };
 
 /**
  * Article input for pipeline processing
