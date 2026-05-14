@@ -60,7 +60,7 @@ import {
 } from '../services/storage';
 import GroupManager from '../components/GroupManager';
 import { fetchFeed, fetchGitHubTrending } from '../services/feedParser';
-import { summarizeWithFallback } from '../services/aiAdapter';
+import { routeAndCall } from '../../shared/lib/ai/llm-router';
 import { requestPermission } from '../services/notifications';
 import { startScheduler, fetchAllSubscriptions, runScheduledPush } from '../services/scheduler';
 import { sendSubscriptionEmail } from '../services/email';
@@ -290,23 +290,28 @@ export default function App() {
   async function handleSummarizeArticle(article: Article) {
     setSummarizing(true);
     try {
-      const mods = await getModels();
       const sets = await getSettings();
-      const result = await summarizeWithFallback(
-        { title: article.title, content: article.content || '', description: article.description },
-        mods,
-        sets.summaryLength
-      );
-      if (result.success) {
-        message.success(`摘要生成成功 (${result.tokensUsed} tokens)`);
+      const lengthPrompt = sets.summaryLength === 'short' ? '简短' : sets.summaryLength === 'long' ? '详细' : '中等';
+      const result = await routeAndCall({
+        taskType: 'structured-summary',
+        messages: [{
+          role: 'user',
+          content: `为以下文章生成${lengthPrompt}摘要，要求简洁准确：\n\n标题：${article.title}\n\n内容：${(article.content || article.description || '').slice(0, 8000)}`
+        }],
+        temperature: 0.3,
+        maxTokens: sets.summaryLength === 'short' ? 200 : sets.summaryLength === 'long' ? 800 : 400,
+      });
+      const summary = result.text.trim();
+      if (summary) {
+        message.success(`摘要生成成功 (${result.usage?.totalTokens || 0} tokens)`);
         setCurrentSummary({
-          content: result.summary,
-          keywords: result.keywords,
+          content: summary,
+          keywords: [],
           articleLink: article.link,
         });
         setSummaryDrawerOpen(true);
       } else {
-        message.error(result.error || '摘要生成失败');
+        message.error('摘要生成失败');
       }
     } finally {
       setSummarizing(false);

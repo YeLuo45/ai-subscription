@@ -1,7 +1,7 @@
 // Scheduler service - manages periodic fetching
 import type { Subscription } from '../types';
 import { fetchFeed, fetchGitHubTrending, attachSubscriptionId } from './feedParser';
-import { summarizeWithFallback } from './aiAdapter';
+import { routeAndCall } from '../../../shared/lib/ai/llm-router';
 import { notifyError } from './notifications';
 import { sendWebhook } from '../api/webhook';
 import { sendSubscriptionEmail } from './email';
@@ -119,28 +119,38 @@ export async function fetchAllSubscriptions(): Promise<void> {
 }
 
 export async function generateSummariesForSubscription(sub: Subscription): Promise<{ articleId: string; summaryId: string }[]> {
-  const models = await getModels();
   const settings = await getSettings();
   const articles = await getArticles(sub.id, 20);
   const results: { articleId: string; summaryId: string }[] = [];
 
   for (const article of articles.slice(0, 5)) {
-    const result = await summarizeWithFallback(
-      { title: article.title, content: article.content || '', description: article.description },
-      models,
-      settings.summaryLength
-    );
-
-    if (result.success) {
-      const summaryRec = await saveSummary({
-        articleId: article.id,
-        subscriptionId: sub.id,
-        content: result.summary,
-        keywords: result.keywords,
-        modelId: result.modelId,
-        tokenUsed: result.tokensUsed,
+    const lengthPrompt = settings.summaryLength === 'short' ? '简短' : settings.summaryLength === 'long' ? '详细' : '中等';
+    try {
+      const result = await routeAndCall({
+        taskType: 'structured-summary',
+        messages: [{
+          role: 'user',
+          content: `为以下文章生成${lengthPrompt}摘要，要求简洁准确：\n\n标题：${article.title}\n\n内容：${(article.content || article.description || '').slice(0, 8000)}`
+        }],
+        temperature: 0.3,
+        maxTokens: settings.summaryLength === 'short' ? 200 : settings.summaryLength === 'long' ? 800 : 400,
       });
-      results.push({ articleId: article.id, summaryId: summaryRec.id });
+      const summary = result.text.trim();
+      if (summary) {
+        const summaryRec = await saveSummary({
+          articleId: article.id,
+          subscriptionId: sub.id,
+          content: summary,
+          keywords: [],
+          modelId: result.modelId || 'router',
+          tokenUsed: result.usage?.totalTokens || 0,
+          isStarred: false,
+          tags: [],
+        });
+        results.push({ articleId: article.id, summaryId: summaryRec.id });
+      }
+    } catch (err) {
+      console.warn(`Summary failed for article ${article.id}:`, err);
     }
   }
 
