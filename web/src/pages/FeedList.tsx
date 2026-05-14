@@ -211,10 +211,10 @@ export default function App() {
     { key: 'readlater', label: <span>{t('sidebar.readLater')} {readLaterCount > 0 ? <Badge count={readLaterCount} size="small" /> : null}</span>, icon: <BookOutlined /> },
     { key: 'recommendations', icon: <StarOutlined />, label: t('sidebar.recommendations') },
     { key: 'search', icon: <SearchOutlined />, label: t('sidebar.search') },
-    { key: 'stats', icon: <BarChartOutlined />, label: '统计' },
-    { key: 'category', icon: <FolderOutlined />, label: '智能分类' },
-    { key: 'recommend', icon: <StarOutlined />, label: '智能推荐' },
-    { key: 'analytics', icon: <BarChartOutlined />, label: '数据分析' },
+    { key: 'stats', icon: <BarChartOutlined />, label: t('sidebar.stats') },
+    { key: 'category', icon: <FolderOutlined />, label: t('sidebar.category') },
+    { key: 'recommend', icon: <StarOutlined />, label: t('sidebar.recommend') },
+    { key: 'analytics', icon: <BarChartOutlined />, label: t('sidebar.analytics') },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -237,9 +237,9 @@ export default function App() {
       setSubscriptions((prev) => [...prev, sub]);
       setAddModalOpen(false);
       addForm.resetFields();
-      message.success(`已添加订阅源: ${sub.name}`);
+      message.success(`${t('feed.addSuccess')}: ${sub.name}`);
     } catch (err) {
-      message.error('添加失败');
+      message.error(t('feed.addFailed'));
     }
   }
 
@@ -257,16 +257,16 @@ export default function App() {
       });
       setSubscriptions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
       setEditSub(null);
-      message.success('已更新订阅源');
+      message.success(t('feed.updateSuccess'));
     } catch {
-      message.error('更新失败');
+      message.error(t('feed.updateFailed'));
     }
   }
 
   async function handleDeleteSubscription(id: string) {
     await deleteSubscription(id);
     setSubscriptions((prev) => prev.filter((s) => s.id !== id));
-    message.success('已删除订阅源');
+    message.success(t('feed.deleteSuccess'));
   }
 
   async function handleToggleEnabled(sub: Subscription) {
@@ -279,9 +279,9 @@ export default function App() {
     try {
       await fetchAllSubscriptions();
       await getArticles(undefined, 100).then(setArticles);
-      message.success('抓取完成');
+      message.success(t('feed.fetchComplete'));
     } catch {
-      message.error('抓取失败');
+      message.error(t('feed.fetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -467,8 +467,8 @@ export default function App() {
     <div>
       <InstallPrompt />
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-        <Button icon={<PlusOutlined />} type="primary" onClick={() => setAddModalOpen(true)}>添加订阅源</Button>
-        <Button icon={<ReloadOutlined />} onClick={handleRefreshAll} loading={loading}>刷新全部</Button>
+        <Button icon={<PlusOutlined />} type="primary" onClick={() => setAddModalOpen(true)}>{t('feed.addFeed')}</Button>
+        <Button icon={<ReloadOutlined />} onClick={handleRefreshAll} loading={loading}>{t('feed.refreshAll')}</Button>
       </div>
 
       {/* Batch Toolbar */}
@@ -484,9 +484,9 @@ export default function App() {
             marginBottom: 8,
           }}
         >
-          <Text strong>已选择 {selectedSubIds.size} 项</Text>
+          <Text strong>{t('feed.selected')} {selectedSubIds.size}</Text>
           <Select
-            placeholder="移动到分组"
+            placeholder={t('feed.moveToGroup')}
             style={{ width: 140 }}
             allowClear
             onChange={async (groupId) => {
@@ -503,10 +503,10 @@ export default function App() {
               setShowSelectMode(false);
               loadSubscriptions();
             }}
-            options={[
-              { label: '未分组', value: undefined },
-              ...groups.map(g => ({ label: g.name, value: g.id })),
-            ]}
+                        options={[
+                          { label: t('feed.ungrouped'), value: undefined },
+                          ...groups.map(g => ({ label: g.name, value: g.id })),
+                        ]}
           />
           <Button size="small" onClick={async () => {
             const updatePromises = Array.from(selectedSubIds).map(id => {
@@ -515,11 +515,11 @@ export default function App() {
               return Promise.resolve();
             });
             await Promise.all(updatePromises);
-            message.success('已批量启用');
+            message.success(t('feed.batchEnableSuccess'));
             setSelectedSubIds(new Set());
             setShowSelectMode(false);
             loadSubscriptions();
-          }}>启用</Button>
+          }}>{t('feed.batchEnable')}</Button>
           <Button size="small" onClick={async () => {
             const updatePromises = Array.from(selectedSubIds).map(id => {
               const sub = subscriptions.find(s => s.id === id);
@@ -527,28 +527,28 @@ export default function App() {
               return Promise.resolve();
             });
             await Promise.all(updatePromises);
-            message.success('已批量禁用');
+            message.success(t('feed.batchDisableSuccess'));
             setSelectedSubIds(new Set());
             setShowSelectMode(false);
             loadSubscriptions();
-          }}>禁用</Button>
+          }}>{t('feed.batchDisable')}</Button>
           <Popconfirm
-            title={`确定删除 ${selectedSubIds.size} 个订阅源？`}
+            title={`${t('feed.confirmDelete')} ${selectedSubIds.size}?`}
             onConfirm={async () => {
               const deletePromises = Array.from(selectedSubIds).map(id => deleteSubscription(id));
               await Promise.all(deletePromises);
-              message.success('已批量删除');
+              message.success(t('feed.batchDeleteSuccess'));
               setSelectedSubIds(new Set());
               setShowSelectMode(false);
               loadSubscriptions();
             }}
           >
-            <Button size="small" danger>删除</Button>
+            <Button size="small" danger>{t('feed.batchDelete')}</Button>
           </Popconfirm>
           <Button size="small" type="text" onClick={() => {
             setSelectedSubIds(new Set());
             setShowSelectMode(false);
-          }}>取消</Button>
+          }}>{t('feed.batchCancel')}</Button>
         </div>
       )}
 
@@ -622,13 +622,13 @@ export default function App() {
                         value={sub.groupId}
                         onChange={async (newGroupId) => {
                           await updateSubscription({ ...sub, groupId: newGroupId });
-                          message.success(newGroupId ? '已移动到分组' : '已移出分组');
+                          message.success(newGroupId ? t('feed.moveToGroupSuccess') : t('feed.moveOutOfGroup'));
                           const [newSubs, newGroups] = await Promise.all([getSubscriptions(), getGroups()]);
                           setSubscriptions(newSubs);
                           setGroups(newGroups);
                         }}
                         options={[
-                          { label: '未分组', value: undefined },
+                          { label: t('feed.ungrouped'), value: undefined },
                           ...groups.map(g => ({ label: g.name, value: g.id })),
                         ]}
                       />,
@@ -672,7 +672,7 @@ export default function App() {
                 }}
               />
               <FolderOutlined style={{ marginLeft: 8 }} />
-              <Text strong style={{ marginLeft: 8 }}>未分组</Text>
+              <Text strong style={{ marginLeft: 8 }}>{t('feed.ungrouped')}</Text>
               <Text type="secondary" style={{ marginLeft: 8 }}>({ungroupedSubs.length})</Text>
             </div>
             <List
@@ -707,15 +707,15 @@ export default function App() {
                       value={sub.groupId}
                       onChange={async (newGroupId) => {
                         await updateSubscription({ ...sub, groupId: newGroupId });
-                        message.success(newGroupId ? '已移动到分组' : '已移出分组');
+                        message.success(newGroupId ? t('feed.moveToGroupSuccess') : t('feed.moveOutOfGroup'));
                         const [newSubs, newGroups] = await Promise.all([getSubscriptions(), getGroups()]);
                         setSubscriptions(newSubs);
                         setGroups(newGroups);
                       }}
-                      options={[
-                        { label: '未分组', value: undefined },
-                        ...groups.map(g => ({ label: g.name, value: g.id })),
-                      ]}
+                        options={[
+                          { label: t('feed.ungrouped'), value: undefined },
+                          ...groups.map(g => ({ label: g.name, value: g.id })),
+                        ]}
                     />,
                     <Tooltip key="edit" title="编辑"><Button icon={<EditOutlined />} size="small" onClick={() => { setEditSub(sub); modelForm.setFieldsValue(sub); }} /></Tooltip>,
                     <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id)}>
@@ -735,10 +735,10 @@ export default function App() {
         );
       })()}
 
-      <Modal title="添加订阅源" open={addModalOpen} onCancel={() => { setAddModalOpen(false); addForm.resetFields(); }} footer={null}>
+      <Modal title={t('feed.addFeed')} open={addModalOpen} onCancel={() => { setAddModalOpen(false); addForm.resetFields(); }} footer={null}>
         <Form form={addForm} layout="vertical" onFinish={handleAddSubscription}>
-          <Form.Item name="name" label="名称" rules={[{ required: true }]}>
-            <Input placeholder="例如：科技资讯" />
+          <Form.Item name="name" label={t('feed.name')} rules={[{ required: true }]}>
+            <Input placeholder={t('feed.placeholder')} />
           </Form.Item>
           <Form.Item name="url" label="URL" rules={[{ required: true, type: 'url' }]}>
             <Input placeholder="https://example.com/feed.xml" />
