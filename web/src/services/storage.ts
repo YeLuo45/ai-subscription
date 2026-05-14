@@ -392,6 +392,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   schedulerEnabled: true,
   themeMode: 'light' as const,
   locale: 'zh' as const,
+  localModeEnabled: false,  // Default to cloud mode
 };
 
 export async function getSettings(): Promise<AppSettings> {

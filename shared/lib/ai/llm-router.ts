@@ -10,6 +10,16 @@ import { AI_SUBSCRIPTION_PROVIDERS, findModelForTask, type TaskType, type Routin
 // Re-export TaskType for convenience
 export { type TaskType } from './providers-ai-subscription';
 
+// Local model support - task types that can use local models
+const LOCAL_CAPABLE_TASKS = ['quick-summary', 'tag-generation', 'intent-classification'];
+
+/**
+ * Check if a task type is capable of local inference
+ */
+export function isLocalCapableTask(taskType: TaskType): boolean {
+  return LOCAL_CAPABLE_TASKS.includes(taskType);
+}
+
 // ============================================================
 // Thinking Config Builder for Router
 // ============================================================
@@ -61,6 +71,7 @@ export interface RouteAndCallOptions {
   messages: SimpleMessage[];
   modelId?: string;        // Optional explicit model override
   providerId?: string;     // Optional explicit provider override
+  forceProvider?: 'local' | 'cloud';  // Force specific provider type
   temperature?: number;
   maxTokens?: number;
   apiKey?: string;
@@ -85,6 +96,7 @@ export async function routeAndCall(
     messages, 
     modelId: explicitModel, 
     providerId: explicitProvider,
+    forceProvider,
     temperature = 0.7,
     maxTokens = 4000,
     apiKey,
@@ -96,7 +108,20 @@ export async function routeAndCall(
   let selectedModelId: string;
   let selectedProviderId: string;
 
-  if (explicitModel && explicitProvider) {
+  // Note: Local inference is handled at the web layer, not here in shared.
+  // The router still supports 'local' as a providerId for explicit routing,
+  // but actual local inference calls go directly to local-inference service.
+  
+  // When forceProvider is 'local', route to local provider model
+  if (forceProvider === 'local') {
+    const modelInfo = findModelForTask(taskType, 'local', conditions);
+    if (modelInfo) {
+      selectedModelId = modelInfo.modelId;
+      selectedProviderId = 'local';
+    } else {
+      throw new Error(`No local model found for task type: ${taskType}`);
+    }
+  } else if (explicitModel && explicitProvider) {
     selectedModelId = explicitModel;
     selectedProviderId = explicitProvider;
   } else {

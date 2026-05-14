@@ -168,6 +168,41 @@ export const AI_SUBSCRIPTION_PROVIDERS: Record<string, RouterProviderConfig> = {
       },
     ],
   },
+  // Local WebLLM provider for offline/fallback scenarios
+  local: {
+    id: 'local',
+    type: 'local',
+    defaultBaseUrl: '',  // Not used for local
+    requiresApiKey: false,
+    thinking: undefined,
+    models: [
+      {
+        id: 'qwen2-0.5b',
+        contextWindow: 32000,
+        outputWindow: 1024,
+        capabilities: { streaming: false, tools: false, vision: false },
+        taskTypes: ['intent-classification', 'tag-generation'],
+        costRank: 1,
+        recommendedFor: ['offline', 'low-latency', 'privacy-sensitive'],
+        routingCondition: {
+          preference: 'speed',
+        },
+      },
+      {
+        id: 'qwen2-0.5b-summary',
+        contextWindow: 32000,
+        outputWindow: 512,
+        capabilities: { streaming: false, tools: false, vision: false },
+        taskTypes: ['quick-summary', 'translation'],
+        costRank: 1,
+        recommendedFor: ['offline', 'quick-tasks'],
+        routingCondition: {
+          preference: 'speed',
+          maxContentLength: 2000,
+        },
+      },
+    ],
+  },
 };
 
 // ============================================================

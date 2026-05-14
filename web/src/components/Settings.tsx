@@ -57,8 +57,35 @@ export const Settings: React.FC = () => {
 
 const GeneralSettings: React.FC = () => {
   const [form] = Form.useForm();
+  const [localModeEnabled, setLocalModeEnabled] = useState(false);
+  const [localModelStatus, setLocalModelStatus] = useState<string>('');
 
-  const handleSave = () => {
+  useEffect(() => {
+    // Load current settings
+    import('../services/storage').then(({ getSettings }) => {
+      getSettings().then(settings => {
+        setLocalModeEnabled(settings.localModeEnabled || false);
+      });
+    });
+
+    // Check local model status
+    import('../services/local-inference').then(({ initializeLocalInference, getHardware }) => {
+      initializeLocalInference().then(() => {
+        const hw = getHardware();
+        if (hw) {
+          setLocalModelStatus(`WebGPU: ${hw.webGPUAvailable ? '支持' : '不支持'}, 内存: ${hw.memoryGB.toFixed(1)}GB`);
+        } else {
+          setLocalModelStatus('检测中...');
+        }
+      });
+    });
+  }, []);
+
+  const handleSave = async () => {
+    const settings = await import('../services/storage').then(m => m.getSettings());
+    await import('../services/storage').then(m => 
+      m.saveSettings({ ...settings, localModeEnabled })
+    );
     message.success('设置已保存');
   };
 
@@ -79,6 +106,26 @@ const GeneralSettings: React.FC = () => {
               <InputNumber style={{ width: 200 }} min="short" max="long" />
             </Form.Item>
           </Input.Group>
+        </Form.Item>
+
+        <Divider />
+
+        <Form.Item 
+          label="本地模式 (Local Mode)" 
+          extra={
+            <div style={{ fontSize: 12, color: '#666' }}>
+              <div>启用后，摘要、标签生成、意图分类等轻量任务将使用本地 WebLLM 模型运行</div>
+              <div style={{ marginTop: 4 }}>模型: Qwen2-0.5B (从 HuggingFace CDN 加载)</div>
+              {localModelStatus && <div style={{ marginTop: 2 }}>状态: {localModelStatus}</div>}
+            </div>
+          }
+        >
+          <Switch 
+            checked={localModeEnabled} 
+            onChange={setLocalModeEnabled}
+            checkedChildren="启用"
+            unCheckedChildren="关闭"
+          />
         </Form.Item>
 
         <Divider />

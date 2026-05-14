@@ -121,6 +121,7 @@ export interface AppSettings {
   schedulerEnabled: boolean;
   themeMode: ThemeMode;
   locale: 'zh' | 'en';
+  localModeEnabled?: boolean;  // Enable local model inference (WebLLM)
 }
 
 export const PRESET_SUBSCRIPTIONS: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'lastFetchedAt'>[] = [
