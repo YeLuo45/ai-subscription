@@ -77,12 +77,13 @@ import SearchPage from './Search';
 import Stats from './Stats';
 import { FeedCategoryPanel } from '../services/feed-category/FeedCategoryPanel';
 import { FeedRecommendPanel } from '../services/feed-recommend/FeedRecommendPanel';
+import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { I18nContext } from '../i18n';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats' | 'category' | 'recommend';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats' | 'category' | 'recommend' | 'analytics';
 
 export default function App() {
   const { t, locale, setLocale } = useContext(I18nContext);
@@ -108,6 +109,7 @@ export default function App() {
   const [noteArticleTitle, setNoteArticleTitle] = useState<string>('');
   const [selectedSubIds, setSelectedSubIds] = useState<Set<string>>(new Set());
   const [showSelectMode, setShowSelectMode] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   useEffect(() => {
     // Cmd+K: focus search
@@ -212,6 +214,7 @@ export default function App() {
     { key: 'stats', icon: <BarChartOutlined />, label: '统计' },
     { key: 'category', icon: <FolderOutlined />, label: '智能分类' },
     { key: 'recommend', icon: <StarOutlined />, label: '智能推荐' },
+    { key: 'analytics', icon: <BarChartOutlined />, label: '数据分析' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -1215,6 +1218,7 @@ export default function App() {
           {activeMenu === 'stats' && <Stats />}
           {activeMenu === 'category' && <FeedCategoryPanel />}
           {activeMenu === 'recommend' && <FeedRecommendPanel />}
+          {activeMenu === 'analytics' && <div style={{ padding: 16 }}><AnalyticsDashboard isOpen={true} onClose={() => setActiveMenu('feeds')} /></div>}
         </Content>
       </Layout>
 
