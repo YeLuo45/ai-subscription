@@ -12,6 +12,7 @@ import zhCN from 'antd/locale/zh_CN';
 import { FeedList } from './components/FeedList';
 import { Settings } from './components/Settings';
 import { TagManager } from './components/TagManager';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 const { Header, Sider, Content } = Layout;
 
@@ -54,6 +55,7 @@ const App: React.FC = () => {
         <Content>
           {renderContent()}
         </Content>
+        <OfflineIndicator />
       </Layout>
     </ConfigProvider>
   );
