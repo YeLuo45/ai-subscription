@@ -1,7 +1,4 @@
-/**
- * Knowledge Graph Types
- * Entity extraction and visualization types
- */
+// Knowledge Graph Types — Enhanced with cross-article linking and reasoning
 
 export type EntityType = 'person' | 'organization' | 'location' | 'event' | 'concept';
 
@@ -10,9 +7,16 @@ export interface Entity {
   name: string;
   type: EntityType;
   description?: string;
-  // Position in graph (calculated by layout)
   x?: number;
   y?: number;
+  // Cross-article tracking
+  articleIds?: string[];    // articles this entity appears in
+  mentionCount?: number;    // total mentions across all articles
+  firstMentioned?: number;  // timestamp of first mention
+  lastMentioned?: number;   // timestamp of last mention
+  // Inferred (not directly extracted)
+  inferred?: boolean;
+  inferenceSource?: string; // how this was inferred
 }
 
 export interface Relation {
@@ -20,6 +24,11 @@ export interface Relation {
   sourceId: string;
   targetId: string;
   label: string;
+  // Cross-article tracking
+  articleIds?: string[];
+  weight?: number;          // 0-1, computed from co-occurrence frequency
+  inferred?: boolean;
+  inferenceSource?: string;
 }
 
 export interface KnowledgeGraph {
@@ -29,6 +38,34 @@ export interface KnowledgeGraph {
   entities: Entity[];
   relations: Relation[];
   createdAt: number;
+}
+
+// Global knowledge graph — aggregated across all articles
+export interface GlobalKnowledgeGraph {
+  id: string;                  // 'global'
+  entities: Entity[];
+  relations: Relation[];
+  updatedAt: number;
+  stats: {
+    totalEntities: number;
+    totalRelations: number;
+    articlesCovered: number;
+    byType: Record<EntityType, number>;
+  };
+}
+
+// Entity timeline entry
+export interface EntityTimelineEntry {
+  articleId: string;
+  articleTitle: string;
+  mentionedAt: number;
+  context?: string;          // snippet around mention
+}
+
+// Cross-article entity resolution result
+export interface MergedEntity extends Entity {
+  sourceEntities: string[];  // original entity IDs that were merged
+  articlesWithEntity: string[];
 }
 
 export interface KnowledgeGraphExtracted {
@@ -46,11 +83,11 @@ export interface KnowledgeGraphExtracted {
 
 // Entity type styling
 export const ENTITY_COLORS: Record<EntityType, string> = {
-  person: '#4A90D9',      // Blue
-  organization: '#52c41a', // Green
-  location: '#fa8c16',     // Orange
-  event: '#eb2f96',        // Pink
-  concept: '#722ed1',      // Purple
+  person: '#4A90D9',
+  organization: '#52c41a',
+  location: '#fa8c16',
+  event: '#eb2f96',
+  concept: '#722ed1',
 };
 
 export const ENTITY_SHAPES: Record<EntityType, 'circle' | 'rect' | 'triangle' | 'diamond'> = {
@@ -61,11 +98,13 @@ export const ENTITY_SHAPES: Record<EntityType, 'circle' | 'rect' | 'triangle' | 
   concept: 'diamond',
 };
 
-// Generate unique ID
+let _entityCounter = 0;
+let _relationCounter = 0;
+
 export function generateEntityId(): string {
-  return `entity_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  return `entity_${Date.now()}_${++_entityCounter}`;
 }
 
 export function generateRelationId(): string {
-  return `rel_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  return `relation_${Date.now()}_${++_relationCounter}`;
 }

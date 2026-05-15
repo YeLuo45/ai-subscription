@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { routeAndCall } from '../../../shared/lib/ai/llm-router';
-import type { KnowledgeGraph, Entity, Relation, KnowledgeGraphExtracted } from '../types/knowledgeGraph';
+import type { KnowledgeGraph, Entity, Relation, KnowledgeGraphExtracted, GlobalKnowledgeGraph, EntityTimelineEntry } from '../types/knowledgeGraph';
 import { generateEntityId, generateRelationId } from '../types/knowledgeGraph';
 import * as kgDB from '../db/knowledgeGraphDB';
 
@@ -14,11 +14,17 @@ interface UseKnowledgeGraphReturn {
   error: string | null;
   graph: KnowledgeGraph | null;
   history: KnowledgeGraph[];
+  globalKg: GlobalKnowledgeGraph | null;
+  timeline: EntityTimelineEntry[];
   extractGraph: (articleId: string, articleTitle: string, content: string) => Promise<KnowledgeGraph | null>;
   loadGraph: (articleId: string) => Promise<KnowledgeGraph | null>;
   loadHistory: () => Promise<void>;
   deleteGraph: (id: string) => Promise<void>;
   regenerateGraph: (articleId: string, articleTitle: string, content: string) => Promise<KnowledgeGraph | null>;
+  buildGlobalKg: () => Promise<GlobalKnowledgeGraph | null>;
+  loadGlobalKg: () => Promise<void>;
+  getEntityTimeline: (entityId: string) => Promise<EntityTimelineEntry[]>;
+  getArticlesForEntity: (entityId: string) => Promise<string[]>;
 }
 
 const ENTITY_TYPES = ['人物', '组织', '地点', '事件', '概念'];
@@ -120,6 +126,8 @@ export function useKnowledgeGraph(): UseKnowledgeGraphReturn {
   const [error, setError] = useState<string | null>(null);
   const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
   const [history, setHistory] = useState<KnowledgeGraph[]>([]);
+  const [globalKg, setGlobalKg] = useState<GlobalKnowledgeGraph | null>(null);
+  const [timeline, setTimeline] = useState<EntityTimelineEntry[]>([]);
 
   const extractGraph = useCallback(async (
     articleId: string,
@@ -239,15 +247,75 @@ export function useKnowledgeGraph(): UseKnowledgeGraphReturn {
     return extractGraph(articleId, articleTitle, content);
   }, [extractGraph]);
 
+  const buildGlobalKg = useCallback(async (): Promise<GlobalKnowledgeGraph | null> => {
+    setLoading(true);
+    try {
+      const gkg = await kgDB.buildGlobalKnowledgeGraph();
+      setGlobalKg(gkg);
+      return gkg;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to build global KG');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadGlobalKg = useCallback(async (): Promise<void> => {
+    try {
+      const gkg = await kgDB.getGlobalKnowledgeGraph();
+      setGlobalKg(gkg || null);
+    } catch (err) {
+      console.error('Failed to load global KG:', err);
+    }
+  }, []);
+
+  const getEntityTimeline = useCallback(async (entityId: string): Promise<EntityTimelineEntry[]> => {
+    try {
+      const gkg = await kgDB.getGlobalKnowledgeGraph();
+      if (!gkg) return [];
+      const entity = gkg.entities.find(e => e.id === entityId);
+      if (!entity?.articleIds) return [];
+
+      const allGraphs = await kgDB.getAllKnowledgeGraphs();
+      const timeline: EntityTimelineEntry[] = [];
+
+      for (const articleId of entity.articleIds) {
+        const graph = allGraphs.find(g => g.articleId === articleId);
+        if (graph) {
+          timeline.push({
+            articleId,
+            articleTitle: graph.articleTitle,
+            mentionedAt: graph.createdAt,
+          });
+        }
+      }
+
+      return timeline.sort((a, b) => b.mentionedAt - a.mentionedAt);
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const getArticlesForEntity = useCallback(async (entityId: string): Promise<string[]> => {
+    return kgDB.getArticlesForEntity(entityId);
+  }, []);
+
   return {
     loading,
     error,
     graph,
     history,
+    globalKg,
+    timeline,
     extractGraph,
     loadGraph,
     loadHistory,
     deleteGraph,
     regenerateGraph,
+    buildGlobalKg,
+    loadGlobalKg,
+    getEntityTimeline,
+    getArticlesForEntity,
   };
 }
