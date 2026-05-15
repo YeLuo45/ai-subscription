@@ -136,6 +136,16 @@ export async function routeAndCall(
   // Log the routing decision
   console.log(`[LLM Router] ${taskType} → ${selectedProviderId}/${selectedModelId}`);
 
+  // Check quota before making the call
+  const { checkQuota } = await import('./billing/quota-tracker');
+  const quotaCheck = await checkQuota();
+  if (!quotaCheck.allowed) {
+    throw new Error(`Quota exceeded: ${quotaCheck.reason}. Please upgrade your plan.`);
+  }
+  if (quotaCheck.status?.isWarning) {
+    console.warn(`[LLM Router] Warning: ${quotaCheck.status.usagePercent.toFixed(1)}% quota used`);
+  }
+
   // Get thinking config for the selected model
   const thinkingConfig = options.thinking ?? getThinkingConfigForModel(selectedModelId);
 
