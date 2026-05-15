@@ -193,6 +193,48 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
         return <span key={index} style={{ color: '#666' }}>标记文章为星标</span>;
       case 'add_to_list':
         return <span key={index} style={{ color: '#666' }}>加入稍后读列表</span>;
+      case 'http_request':
+        return (
+          <Space key={index} wrap direction="vertical" style={{ width: '100%' }}>
+            <Space wrap>
+              <Select
+                value={action.params.method || 'POST'}
+                onChange={val => handleActionParamChange(index, 'method', val)}
+                style={{ width: 100 }}
+              >
+                {['GET', 'POST', 'PUT', 'DELETE'].map(m => <Select.Option key={m} value={m}>{m}</Select.Option>)}
+              </Select>
+              <Input
+                placeholder="URL"
+                style={{ width: 220 }}
+                value={action.params.url || ''}
+                onChange={e => handleActionParamChange(index, 'url', e.target.value)}
+              />
+            </Space>
+            <Input.TextArea
+              placeholder="JSON Body 模板，支持 {{title}} {{url}} {{item}} 等变量"
+              style={{ width: 340 }}
+              rows={2}
+              value={action.params.body || ''}
+              onChange={e => handleActionParamChange(index, 'body', e.target.value)}
+            />
+            <Space>
+              <InputNumber
+                placeholder="超时(ms)"
+                style={{ width: 100 }}
+                value={action.params.timeout || 10000}
+                onChange={val => handleActionParamChange(index, 'timeout', val || 10000)}
+              />
+              <InputNumber
+                placeholder="重试次数"
+                style={{ width: 80 }}
+                min={0} max={5}
+                value={action.params.retry || 0}
+                onChange={val => handleActionParamChange(index, 'retry', val || 0)}
+              />
+            </Space>
+          </Space>
+        );
       default:
         return null;
     }
@@ -305,6 +347,7 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
                     <Select.Option value="send_webhook">{ACTION_LABELS.send_webhook}</Select.Option>
                     <Select.Option value="mark_starred">{ACTION_LABELS.mark_starred}</Select.Option>
                     <Select.Option value="add_to_list">{ACTION_LABELS.add_to_list}</Select.Option>
+                    <Select.Option value="http_request">{ACTION_LABELS.http_request}</Select.Option>
                   </Select>
                   {renderActionEditor(action, index)}
                   <Button
@@ -329,6 +372,62 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
           添加动作
         </Button>
 
+        {/* ── Visual Flow Diagram ── */}
+        {rule && (
+          <>
+            <Divider>流程预览</Divider>
+            <div style={{
+              background: '#1a1a2e',
+              borderRadius: 8,
+              padding: '16px 20px',
+              fontFamily: 'monospace',
+              fontSize: 12,
+              color: '#e0e0e0',
+              lineHeight: 1.8,
+              marginBottom: 16,
+            }}>
+              <span style={{ background: '#e6a23c', color: '#fff', borderRadius: 4, padding: '2px 10px', marginRight: 8 }}>
+                触发: {TRIGGER_LABELS[rule.trigger.type]}
+              </span>
+              <span style={{ color: '#67c23a', margin: '0 6px' }}>→</span>
+              {(rule.conditions?.tags?.length || rule.conditions?.minLength !== undefined || rule.preconditions?.clauses?.length) && (
+                <>
+                  <span style={{ background: '#409eff', color: '#fff', borderRadius: 4, padding: '2px 10px', marginRight: 8 }}>
+                    条件{rule.conditions?.tags?.length ? ` · 标签×${rule.conditions.tags.length}` : ''}{rule.conditions?.minLength !== undefined ? ` · 字数>${rule.conditions.minLength}` : ''}
+                  </span>
+                  <span style={{ color: '#67c23a', margin: '0 6px' }}>→</span>
+                </>
+              )}
+              {rule.branches?.length ? <>
+                <span style={{ background: '#f56c6c', color: '#fff', borderRadius: 4, padding: '2px 10px', marginRight: 8 }}>
+                  分支×{rule.branches.length}
+                </span>
+                <span style={{ color: '#67c23a', margin: '0 6px' }}>→</span>
+              </> : null}
+              {rule.loop ? <>
+                <span style={{ background: '#9b59b6', color: '#fff', borderRadius: 4, padding: '2px 10px', marginRight: 8 }}>
+                  循环 · {rule.loop.itemsField}
+                </span>
+                <span style={{ color: '#67c23a', margin: '0 6px' }}>→</span>
+              </> : null}
+              <span style={{ background: '#67c23a', color: '#fff', borderRadius: 4, padding: '2px 10px' }}>
+                ×{rule.actions.length} 动作
+              </span>
+            </div>
+            {rule.branches?.map((branch, i) => (
+              <div key={branch.id} style={{ background: '#fdf6ec', border: '1px solid #f5dab1', borderRadius: 6, padding: '8px 12px', marginBottom: 6 }}>
+                <span style={{ color: '#e6a23c', fontWeight: 600 }}>分支 {i + 1}: </span>
+                <span style={{ color: '#666', fontSize: 12 }}>
+                  {branch.conditions.map(c => `${c.field} ${c.operator} ${c.value}`).join(' 且 ')}
+                </span>
+                <span style={{ color: '#999', fontSize: 11, marginLeft: 8 }}>
+                  → {branch.actions.map(a => ACTION_LABELS[a.type] || a.type).join(', ')}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+
         <Divider />
 
         <Alert
@@ -340,7 +439,9 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
               <code>{'{{url}}'}</code> 文章链接<br />
               <code>{'{{generated_title}}'}</code> AI生成标题 &nbsp;
               <code>{'{{sentiment}}'}</code> 情感标签<br />
-              <code>{'{{key_points}}'}</code> 关键点摘要
+              <code>{'{{key_points}}'}</code> 关键点摘要 &nbsp;
+              <code>{'{{item}}'}</code> 循环项(Loop专用) &nbsp;
+              <code>{'{{content}}'}</code> 内容摘要
             </div>
           }
           type="info"
