@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  plugin-marketplace:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: plugin-marketplace
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DATA_DIR=/data/plugins
+      - ADMIN_API_KEY=admin-secret-key-2024
+      - DEVELOPER_API_KEY=dev-secret-key-2024
+    volumes:
+      - plugin-data:/data/plugins
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-standalone", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  plugin-data:
+    driver: local
