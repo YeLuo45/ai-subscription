@@ -54,3 +54,26 @@ export {
   type MCPToolCallRecord,
   type MCPHistoryFilter,
 } from './history';
+
+// AI Adapter exports
+export {
+  callMCPTool,
+  detectGitHubURL,
+  normalizeGitHubUrl,
+  getRepoInfo,
+  searchGitHubRepositories,
+  enhanceArticleWithGitHub,
+  shouldTriggerSearch,
+  searchWithBrave,
+  enhanceArticleWithSearch,
+  enhanceWithMCP,
+  getMCPEnhanceConfig,
+  saveMCPEnhanceConfig,
+  updateMCPEnhanceConfig,
+  type MCPEnhanceConfig,
+  type Article,
+  type AnalysisContext,
+  type EnrichedArticle,
+  type GitHubRepoInfo,
+  type SearchResult,
+} from './ai-adapter';
