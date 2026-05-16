@@ -1,12 +1,13 @@
 /**
  * IndexedDB Database Layer for Workflow Rules and Logs
- * Tables: workflow_rules, workflow_logs
+ * Tables: workflow_rules, workflow_logs, workflow_instances
  */
 
 import type { WorkflowRule, WorkflowLogEntry } from '../types/workflow';
+import type { Workflow, WorkflowExecutionLog } from '../services/workflow/types';
 
 const DB_NAME = 'ai-subscription-workflow';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -159,9 +160,90 @@ export async function isRuleExecutedRecently(
   const { store } = await tx('workflow_logs');
   const index = store.index('ruleId');
   const logs = await promisifyRequest<WorkflowLogEntry[]>(index.getAll(ruleId));
-  
+
   const now = Date.now();
   return logs.some(
     log => log.articleId === articleId && log.success && (now - log.timestamp) < debounceMs
   );
+}
+
+// ============================================================
+// New Workflow (Advanced) Operations
+// ============================================================
+
+export async function getAllWorkflows(): Promise<Workflow[]> {
+  const { store } = await tx('workflow_rules');
+  const rules = await promisifyRequest<WorkflowRule[]>(store.getAll());
+  // Convert legacy rules to new format
+  return rules.map(rule => ({
+    id: rule.id,
+    name: rule.name,
+    description: '',
+    enabled: rule.enabled,
+    triggers: [{
+      type: 'article-matched',
+      conditions: rule.conditions ? {
+        feedId: rule.trigger?.sources?.[0],
+        keyword: rule.trigger?.keywords?.join(','),
+        minContentLength: rule.conditions?.minLength,
+      } : undefined,
+    }],
+    actions: (rule.actions || []).map(a => ({
+      type: a.type === 'add_tag' ? 'tag-article' :
+            a.type === 'send_telegram' ? 'send-notification' :
+            a.type === 'http_request' ? 'http-request' : a.type,
+      tags: a.params?.tag ? [a.params.tag] : undefined,
+      channel: a.type === 'send_telegram' ? 'telegram' : undefined,
+      template: a.params?.message || a.params?.url,
+      url: a.params?.url,
+      method: 'POST' as const,
+    })),
+    createdAt: rule.createdAt,
+    updatedAt: Date.now(),
+  }));
+}
+
+export async function saveWorkflow(workflow: Omit<Workflow, 'id' | 'createdAt'>): Promise<Workflow> {
+  const { store } = await tx('workflow_rules', 'readwrite');
+  const full: Workflow = {
+    ...workflow,
+    id: `wf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    createdAt: Date.now(),
+  };
+  await promisifyRequest(store.put(full as any));
+  return full;
+}
+
+export async function updateWorkflow(workflow: Workflow): Promise<Workflow> {
+  const { store } = await tx('workflow_rules', 'readwrite');
+  await promisifyRequest(store.put(workflow as any));
+  return workflow;
+}
+
+export async function deleteWorkflow(id: string): Promise<void> {
+  const { store } = await tx('workflow_rules', 'readwrite');
+  await promisifyRequest(store.delete(id));
+}
+
+export async function saveWorkflowLog(entry: Omit<WorkflowExecutionLog, 'id'>): Promise<WorkflowExecutionLog> {
+  const { store } = await tx('workflow_logs', 'readwrite');
+  const full: WorkflowExecutionLog = {
+    ...entry,
+    id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+  };
+  await promisifyRequest(store.put(full as any));
+  return full;
+}
+
+export async function getWorkflowLogs(limit = 100): Promise<WorkflowExecutionLog[]> {
+  const { store } = await tx('workflow_logs');
+  const logs = await promisifyRequest<WorkflowExecutionLog[]>(store.getAll());
+  return logs.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+}
+
+export async function getWorkflowLogsByWorkflowId(workflowId: string, limit = 50): Promise<WorkflowExecutionLog[]> {
+  const { store } = await tx('workflow_logs');
+  const index = store.index('ruleId');
+  const logs = await promisifyRequest<WorkflowExecutionLog[]>(index.getAll(workflowId));
+  return logs.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
 }
