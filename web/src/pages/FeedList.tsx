@@ -40,6 +40,7 @@ import {
   StarOutlined,
   SearchOutlined,
   BarChartOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
@@ -77,6 +78,7 @@ import SearchPage from './Search';
 import Stats from './Stats';
 import { FeedCategoryPanel } from '../services/feed-category/FeedCategoryPanel';
 import { FeedRecommendPanel } from '../services/feed-recommend/FeedRecommendPanel';
+import MCPServerPanel from '../components/MCPServerPanel';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { I18nContext } from '../i18n';
 
@@ -214,6 +216,7 @@ export default function App() {
     { key: 'stats', icon: <BarChartOutlined />, label: t('sidebar.stats') },
     { key: 'category', icon: <FolderOutlined />, label: t('sidebar.category') },
     { key: 'recommend', icon: <StarOutlined />, label: t('sidebar.recommend') },
+    { key: 'mcp', icon: <ApiOutlined />, label: 'MCP 服务器' },
     { key: 'analytics', icon: <BarChartOutlined />, label: t('sidebar.analytics') },
   ];
 
@@ -1223,6 +1226,7 @@ export default function App() {
           {activeMenu === 'stats' && <Stats />}
           {activeMenu === 'category' && <FeedCategoryPanel />}
           {activeMenu === 'recommend' && <FeedRecommendPanel />}
+          {activeMenu === 'mcp' && <MCPServerPanel />}
           {activeMenu === 'analytics' && <div style={{ padding: 16 }}><AnalyticsDashboard isOpen={true} onClose={() => setActiveMenu('feeds')} /></div>}
         </Content>
       </Layout>
