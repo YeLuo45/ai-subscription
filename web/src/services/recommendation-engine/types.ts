@@ -51,3 +51,45 @@ export const DEFAULT_WEIGHTS: HybridScoreWeights = {
   popularity: 0.15,
   recency: 0.15,
 };
+
+// Interest Profile (for PRD-specified InterestAnalyzer)
+export interface InterestProfile {
+  topKeywords: Array<{ keyword: string; weight: number }>;
+  topCategories: string[];
+  topFeeds: string[];
+  updatedAt: number;
+}
+
+// Recommendation types for subscription recommendations
+export type RecommendationType = 'similar' | 'category' | 'trending' | 'similar-users';
+
+export interface SubscriptionRecommendation {
+  subscription: {
+    id?: string;
+    name: string;
+    url: string;
+    type: string;
+    category?: string;
+    enabled?: boolean;
+    aiSummaryEnabled?: boolean;
+    fetchIntervalMinutes?: number;
+  };
+  score: number;
+  matchedKeywords: string[];
+  reason: string;
+  type: RecommendationType;
+}
+
+export interface ArticleRecommendation {
+  article: {
+    id?: string;
+    title: string;
+    link: string;
+    description?: string;
+    isRead?: boolean;
+    isStarred?: boolean;
+  };
+  score: number;
+  matchedKeywords: string[];
+  type: RecommendationType;
+}
