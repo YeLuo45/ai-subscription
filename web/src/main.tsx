@@ -8,7 +8,9 @@ import ReactDOM from 'react-dom/client';
 import { ConfigProvider, Layout, Menu, Tabs, Button } from 'antd';
 import { SettingOutlined, FileTextOutlined, LinkOutlined } from '@ant-design/icons';
 import zhCN from 'antd/locale/zh_CN';
+import enUS from 'antd/locale/en_US';
 
+import { I18nProvider, useI18n } from './i18n';
 import { FeedList } from './components/FeedList';
 import { Settings } from './components/Settings';
 import { TagManager } from './components/TagManager';
@@ -18,8 +20,9 @@ const { Header, Sider, Content } = Layout;
 
 type ViewType = 'feeds' | 'settings' | 'tags';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('feeds');
+  const { t, locale } = useI18n();
 
   const renderContent = () => {
     switch (currentView) {
@@ -35,34 +38,44 @@ const App: React.FC = () => {
   };
 
   return (
-    <ConfigProvider locale={zhCN}>
-      <Layout style={{ minHeight: '100vh' }}>
-        <Header style={{ background: '#001529', padding: '0 16px', display: 'flex', alignItems: 'center' }}>
-          <div style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginRight: 32 }}>
-            AI Subscription
-          </div>
-          <Menu
-            theme="dark"
-            mode="horizontal"
-            defaultSelectedKeys={['feeds']}
-            items={[
-              { key: 'feeds', icon: <LinkOutlined />, label: '订阅源', onClick: () => setCurrentView('feeds') },
-              { key: 'settings', icon: <SettingOutlined />, label: '设置', onClick: () => setCurrentView('settings') },
-            ]}
-            style={{ background: 'transparent', flex: 1 }}
-          />
-        </Header>
-        <Content>
-          {renderContent()}
-        </Content>
-        <OfflineIndicator />
-      </Layout>
+    <Layout style={{ minHeight: '100vh' }}>
+      <Header style={{ background: '#001529', padding: '0 16px', display: 'flex', alignItems: 'center' }}>
+        <div style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginRight: 32 }}>
+          AI Subscription
+        </div>
+        <Menu
+          theme="dark"
+          mode="horizontal"
+          defaultSelectedKeys={['feeds']}
+          items={[
+            { key: 'feeds', icon: <LinkOutlined />, label: t('sidebar.feeds'), onClick: () => setCurrentView('feeds') },
+            { key: 'settings', icon: <SettingOutlined />, label: t('sidebar.settings'), onClick: () => setCurrentView('settings') },
+          ]}
+          style={{ background: 'transparent', flex: 1 }}
+        />
+      </Header>
+      <Content>
+        {renderContent()}
+      </Content>
+      <OfflineIndicator />
+    </Layout>
+  );
+};
+
+const App: React.FC = () => {
+  const { locale } = useI18n();
+
+  return (
+    <ConfigProvider locale={locale === 'zh' ? zhCN : enUS}>
+      <AppContent />
     </ConfigProvider>
   );
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <I18nProvider>
+      <App />
+    </I18nProvider>
   </React.StrictMode>
 );

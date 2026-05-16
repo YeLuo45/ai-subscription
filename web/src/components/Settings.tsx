@@ -6,6 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select, Empty } from 'antd';
 import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined, ApiOutlined, RocketOutlined } from '@ant-design/icons';
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { useI18n } from '../i18n';
 import { TagManager } from './TagManager';
 import { WorkflowList } from './WorkflowList';
 import { TranslationSettings } from './TranslationSettings';
@@ -22,32 +24,34 @@ import * as publicListDB from '../db/publicListDB';
 const { TabPane } = Tabs;
 
 export const Settings: React.FC = () => {
+  const { t } = useI18n();
+  
   return (
     <div style={{ padding: 16 }}>
-      <h2>设置</h2>
+      <h2>{t('settings.title')}</h2>
       <Tabs defaultActiveKey="general">
-        <TabPane tab={<span><SettingOutlined /> 通用设置</span>} key="general">
+        <TabPane tab={<span><SettingOutlined /> {t('settings.generalSettings')}</span>} key="general">
           <GeneralSettings />
         </TabPane>
-        <TabPane tab={<span><GlobalOutlined /> 标签管理</span>} key="tags">
+        <TabPane tab={<span><GlobalOutlined /> {t('settings.tagsManagement')}</span>} key="tags">
           <TagManager />
         </TabPane>
-        <TabPane tab={<span><TranslationOutlined /> 翻译设置</span>} key="translation">
+        <TabPane tab={<span><TranslationOutlined /> {t('settings.translationSettings')}</span>} key="translation">
           <TranslationSettings />
         </TabPane>
-        <TabPane tab={<span><CloudSyncOutlined /> 同步设置</span>} key="sync">
+        <TabPane tab={<span><CloudSyncOutlined /> {t('settings.syncSettings')}</span>} key="sync">
           <SyncSettings />
         </TabPane>
-        <TabPane tab={<span><ShareAltOutlined /> 公开列表</span>} key="public">
+        <TabPane tab={<span><ShareAltOutlined /> {t('settings.publicLists')}</span>} key="public">
           <PublicListsSettings />
         </TabPane>
-        <TabPane tab={<span><MailOutlined /> 邮件订阅</span>} key="email">
+        <TabPane tab={<span><MailOutlined /> {t('settings.emailSubscription')}</span>} key="email">
           <EmailSubscriptionSettings />
         </TabPane>
-        <TabPane tab={<span><ApiOutlined /> 开发者</span>} key="developer">
+        <TabPane tab={<span><ApiOutlined /> {t('settings.developer')}</span>} key="developer">
           <DeveloperPanel />
         </TabPane>
-        <TabPane tab={<span><RocketOutlined /> 自动化工作流</span>} key="workflow">
+        <TabPane tab={<span><RocketOutlined /> {t('settings.workflow')}</span>} key="workflow">
           <WorkflowList />
         </TabPane>
       </Tabs>
