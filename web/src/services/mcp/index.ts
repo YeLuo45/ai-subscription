@@ -36,3 +36,21 @@ export {
   MCPToolAdapter,
   createMCPToolAdapter,
 } from './tool-adapter';
+
+export {
+  MCPTEMPLATES,
+  getTemplateById,
+  getTemplateIds,
+  type MCPServerTemplate,
+} from './templates';
+
+export {
+  addToolCallRecord,
+  getToolCallRecords,
+  getRecordsByServer,
+  clearHistory,
+  clearHistoryBefore,
+  getHistoryStats,
+  type MCPToolCallRecord,
+  type MCPHistoryFilter,
+} from './history';
