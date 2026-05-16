@@ -15,6 +15,10 @@ import { FeedList } from './components/FeedList';
 import { Settings } from './components/Settings';
 import { TagManager } from './components/TagManager';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { OfflineBanner } from './components/OfflineBanner';
+import { InstallBanner } from './components/InstallBanner';
+import { flushOfflineQueue, isOnline } from './services/offline';
+import { useEffect } from 'react';
 
 const { Header, Sider, Content } = Layout;
 
@@ -23,6 +27,26 @@ type ViewType = 'feeds' | 'settings' | 'tags';
 const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('feeds');
   const { t, locale } = useI18n();
+
+  // Flush offline queue when coming back online
+  useEffect(() => {
+    const handleOnline = async () => {
+      if (isOnline()) {
+        await flushOfflineQueue();
+      }
+    };
+    
+    window.addEventListener('online', handleOnline);
+    
+    // Check immediately in case we're already online
+    if (isOnline()) {
+      flushOfflineQueue();
+    }
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   const renderContent = () => {
     switch (currentView) {
@@ -56,8 +80,9 @@ const AppContent: React.FC = () => {
       </Header>
       <Content>
         {renderContent()}
+        <OfflineBanner />
+        <InstallBanner />
       </Content>
-      <OfflineIndicator />
     </Layout>
   );
 };

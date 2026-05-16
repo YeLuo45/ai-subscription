@@ -1,11 +1,11 @@
 import React from 'react';
 import { WifiOutlined, CloudSyncOutlined } from '@ant-design/icons';
-import { useOfflineStatus, usePWAUpdate } from '../hooks/useOfflineStatus';
-import { usePWAUpdate as usePWAUpdateHook } from '../hooks/usePWAUpdate';
+import { useOfflineStatus } from '../hooks/useOfflineStatus';
+import { usePWAUpdate } from '../hooks/usePWAUpdate';
 
 export const OfflineIndicator: React.FC = () => {
   const isOffline = useOfflineStatus();
-  const { updateAvailable, applyUpdate } = usePWAUpdateHook();
+  const { updateAvailable, applyUpdate } = usePWAUpdate();
 
   if (isOffline) {
     return (
