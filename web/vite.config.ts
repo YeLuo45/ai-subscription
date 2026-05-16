@@ -175,12 +175,47 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // The 'ai' package and other dependencies are in web/node_modules
-      external: [
-        'ai', '@ai-sdk/openai', '@ai-sdk/anthropic', '@ai-sdk/google',
-        'mathjs', 'jsonrepair', 'partial-json', 'zod',
-      ],
+      output: {
+        manualChunks(id) {
+          // React core - split react and react-dom
+          if (id.includes('node_modules/react/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/react-dom/')) {
+            return 'vendor-react-dom';
+          }
+          // Ant Design - all antd packages
+          if (id.includes('node_modules/antd/') || id.includes('node_modules/@ant-design/')) {
+            return 'vendor-antd';
+          }
+          // AI SDKs - separate chunk for AI functionality
+          if (id.includes('node_modules/@ai-sdk/') || id.includes('node_modules/ai/')) {
+            return 'vendor-ai-sdk';
+          }
+          // Math and utility libraries
+          if (id.includes('node_modules/mathjs/') || id.includes('node_modules/zod/')) {
+            return 'vendor-utils';
+          }
+          // Internal service modules
+          if (id.includes('/src/services/mcp/')) {
+            return 'vendor-mcp';
+          }
+          if (id.includes('/src/services/workflow/')) {
+            return 'vendor-workflow';
+          }
+          if (id.includes('/src/services/recommendation-engine/')) {
+            return 'vendor-recommendation';
+          }
+          if (id.includes('/src/services/scheduler/')) {
+            return 'vendor-scheduler';
+          }
+          if (id.includes('/src/services/sync/')) {
+            return 'vendor-sync';
+          }
+        },
+      },
     },
+    chunkSizeWarningLimit: 500,
   },
   optimizeDeps: {
     include: [

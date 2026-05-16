@@ -1,117 +1,294 @@
-const CACHE_VERSION = 'v1';
+/**
+ * AI Subscription Service Worker
+ * Implements App Shell caching + StaleWhileRevalidate strategy
+ * No external dependencies - pure vanilla JS
+ */
+
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
+const APP_SHELL_CACHE = `appshell-${CACHE_VERSION}`;
 
-const STATIC_ASSETS = [
+// App Shell assets - core assets that should always be cached
+const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
+  '/manifest.json',
+  '/icons.svg',
+  '/favicon.svg',
+  '/icon.svg',
 ];
 
-// 安装
+// Static assets that can be cached indefinitely (immutable with hash naming)
+const IMMUTABLE_ASSETS = [
+  // Assets with hash in filename are automatically considered immutable
+];
+
+// Install event - cache App Shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+    caches.open(APP_SHELL_CACHE).then((cache) => {
+      console.log('[SW] Caching App Shell assets');
+      return cache.addAll(APP_SHELL_ASSETS);
+    }).then(() => {
+      // Skip waiting to activate immediately
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
-// 激活
+// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys
-          .filter((key) => key !== STATIC_CACHE && key !== DYNAMIC_CACHE)
-          .map((key) => caches.delete(key))
+          .filter((key) => {
+            // Delete old version caches
+            return ![
+              STATIC_CACHE,
+              DYNAMIC_CACHE,
+              APP_SHELL_CACHE
+            ].includes(key);
+          })
+          .map((key) => {
+            console.log('[SW] Deleting old cache:', key);
+            return caches.delete(key);
+          })
       );
+    }).then(() => {
+      // Take control of all clients immediately
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
-// 请求拦截
+// Fetch event - implement caching strategies
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 跳过非 GET 和 chrome-extension 请求
+  // Skip non-GET requests and chrome-extension URLs
   if (request.method !== 'GET' || url.protocol === 'chrome-extension:') {
     return;
   }
 
-  // API 请求：Network First
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
+  // Skip WebSocket connections
+  if (url.protocol === 'ws:' || url.protocol === 'wss:') {
     return;
   }
 
-  // 静态资源：Cache First
-  if (
-    request.destination === 'style' ||
-    request.destination === 'script' ||
-    request.destination === 'font' ||
-    request.destination === 'image'
-  ) {
+  // API requests: StaleWhileRevalidate strategy
+  // Returns cached response immediately while fetching fresh data in background
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(staleWhileRevalidate(request, DYNAMIC_CACHE));
+    return;
+  }
+
+  // App Shell: Cache First with network fallback
+  if (isAppShellAsset(url.pathname)) {
+    event.respondWith(cacheFirst(request, APP_SHELL_CACHE));
+    return;
+  }
+
+  // Static resources with hash names (immutable): Cache First indefinitely
+  // These assets have content-based hashes in their filenames
+  if (hasHashInFilename(url.pathname)) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
 
-  // HTML：Stale While Revalidate
-  event.respondWith(staleWhileRevalidate(request, DYNAMIC_CACHE));
+  // Other static assets (JS, CSS, images, fonts): StaleWhileRevalidate
+  if (
+    request.destination === 'style' ||
+    request.destination === 'script' ||
+    request.destination === 'image' ||
+    request.destination === 'font'
+  ) {
+    event.respondWith(staleWhileRevalidate(request, STATIC_CACHE));
+    return;
+  }
+
+  // HTML pages: StaleWhileRevalidate for offline support
+  if (request.destination === 'document') {
+    event.respondWith(staleWhileRevalidate(request, DYNAMIC_CACHE));
+    return;
+  }
+
+  // Default: Network First with cache fallback
+  event.respondWith(networkFirst(request, DYNAMIC_CACHE));
 });
 
-// 策略实现
+// Check if request is for App Shell asset
+function isAppShellAsset(pathname) {
+  return APP_SHELL_ASSETS.some(asset => 
+    pathname === asset || pathname.endsWith(asset)
+  );
+}
+
+// Check if filename contains hash (indicating immutable content)
+function hasHashInFilename(pathname) {
+  // Match patterns like: filename-a1b2c3d4.js
+  const hashPattern = /-[a-f0-9]{8,}\.[a-z]+$/;
+  return hashPattern.test(pathname);
+}
+
+// Cache First strategy - best for immutable static assets
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
-  if (cached) return cached;
+  
+  if (cached) {
+    console.log('[SW] Cache First HIT:', request.url);
+    return cached;
+  }
 
   try {
     const response = await fetch(request);
     if (response.ok) {
       cache.put(request, response.clone());
+      console.log('[SW] Cache First MISS - cached:', request.url);
     }
     return response;
-  } catch {
-    return new Response('Offline', { status: 503 });
+  } catch (error) {
+    console.log('[SW] Cache First FALLBACK (offline):', request.url);
+    return new Response('Offline - Resource not available', {
+      status: 503,
+      statusText: 'Service Unavailable'
+    });
   }
 }
 
+// Network First strategy - best for dynamic API responses
 async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
+  
   try {
     const response = await fetch(request);
     if (response.ok) {
       cache.put(request, response.clone());
     }
     return response;
-  } catch {
+  } catch (error) {
     const cached = await cache.match(request);
-    return cached || new Response('Offline', { status: 503 });
+    if (cached) {
+      console.log('[SW] Network First FALLBACK (cached):', request.url);
+      return cached;
+    }
+    console.log('[SW] Network First FALLBACK (offline):', request.url);
+    return new Response(JSON.stringify({ error: 'Offline', offline: true }), {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
+// StaleWhileRevalidate strategy - best balance of speed and freshness
+// Returns cached response immediately while updating cache in background
 async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
 
+  // Start network fetch in background regardless of cache hit
   const fetchPromise = fetch(request)
     .then((response) => {
       if (response.ok) {
         cache.put(request, response.clone());
+        console.log('[SW] SWR updated cache:', request.url);
       }
       return response;
     })
-    .catch(() => null);
+    .catch((error) => {
+      console.log('[SW] SWR network failed:', request.url, error.message);
+      // Return null to indicate network failure
+      return null;
+    });
 
-  return cached || fetchPromise;
+  // Return cached response immediately if available
+  if (cached) {
+    console.log('[SW] StaleWhileRevalidate HIT:', request.url);
+    return cached;
+  }
+
+  // Wait for network if no cache
+  console.log('[SW] StaleWhileRevalidate MISS - waiting for network:', request.url);
+  const networkResponse = await fetchPromise;
+  if (networkResponse) {
+    return networkResponse;
+  }
+
+  // Network failed and no cache
+  return new Response('Offline - Resource not available', {
+    status: 503,
+    statusText: 'Service Unavailable'
+  });
 }
 
-// 消息处理
+// Periodic cache cleanup - clean up entries older than 7 days in dynamic cache
+async function cleanupOldCacheEntries(cacheName, maxAgeMs = 7 * 24 * 60 * 60 * 1000) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  const now = Date.now();
+  
+  for (const request of keys) {
+    const cached = await cache.match(request);
+    if (cached) {
+      const dateHeader = cached.headers.get('date');
+      if (dateHeader) {
+        const date = new Date(dateHeader).getTime();
+        if (now - date > maxAgeMs) {
+          await cache.delete(request);
+          console.log('[SW] Deleted stale cache entry:', request.url);
+        }
+      }
+    }
+  }
+}
+
+// Message handling for manual cache operations
 self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') {
-    self.skipWaiting();
+  const { type, payload } = event.data || {};
+
+  switch (type) {
+    case 'skipWaiting':
+      self.skipWaiting();
+      break;
+
+    case 'clearCache':
+      // Clear all caches
+      caches.keys().then((keys) => {
+        return Promise.all(keys.map((key) => caches.delete(key)));
+      }).then(() => {
+        console.log('[SW] All caches cleared');
+        event.ports[0]?.postMessage({ success: true });
+      });
+      break;
+
+    case 'cleanupOldEntries':
+      cleanupOldCacheEntries(DYNAMIC_CACHE).then(() => {
+        console.log('[SW] Old cache entries cleaned up');
+        event.ports[0]?.postMessage({ success: true });
+      });
+      break;
+
+    case 'getCacheStatus':
+      caches.keys().then((keys) => {
+        const status = {};
+        const promises = keys.map(async (key) => {
+          const cache = await caches.open(key);
+          const keys = await cache.keys();
+          status[key] = keys.length;
+        });
+        return Promise.all(promises).then(() => status);
+      }).then((status) => {
+        event.ports[0]?.postMessage({ success: true, status });
+      });
+      break;
+
+    default:
+      console.log('[SW] Unknown message type:', type);
   }
 });
+
+console.log('[SW] Service Worker loaded - AI Subscription v' + CACHE_VERSION);

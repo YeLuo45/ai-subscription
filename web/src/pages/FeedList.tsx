@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext, Suspense, lazy } from 'react';
 import {
   Layout,
   Menu,
@@ -78,9 +78,18 @@ import SearchPage from './Search';
 import Stats from './Stats';
 import { FeedCategoryPanel } from '../services/feed-category/FeedCategoryPanel';
 import { FeedRecommendPanel } from '../services/feed-recommend/FeedRecommendPanel';
-import MCPServerPanel from '../components/MCPServerPanel';
-import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { I18nContext } from '../i18n';
+
+// Lazy load non-critical components for performance
+const MCPServerPanel = lazy(() => import('../components/MCPServerPanel'));
+const AnalyticsDashboard = lazy(() => import('../components/AnalyticsDashboard'));
+
+// Loading fallback for lazy components
+const LazyLoadingFallback: React.FC = () => (
+  <div style={{ padding: 24, textAlign: 'center' }}>
+    <Spin tip="Loading..." />
+  </div>
+);
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -1226,8 +1235,8 @@ export default function App() {
           {activeMenu === 'stats' && <Stats />}
           {activeMenu === 'category' && <FeedCategoryPanel />}
           {activeMenu === 'recommend' && <FeedRecommendPanel />}
-          {activeMenu === 'mcp' && <MCPServerPanel />}
-          {activeMenu === 'analytics' && <div style={{ padding: 16 }}><AnalyticsDashboard isOpen={true} onClose={() => setActiveMenu('feeds')} /></div>}
+          {activeMenu === 'mcp' && <Suspense fallback={<LazyLoadingFallback />}><MCPServerPanel /></Suspense>}
+          {activeMenu === 'analytics' && <Suspense fallback={<LazyLoadingFallback />}><div style={{ padding: 16 }}><AnalyticsDashboard isOpen={true} onClose={() => setActiveMenu('feeds')} /></div></Suspense>}
         </Content>
       </Layout>
 
