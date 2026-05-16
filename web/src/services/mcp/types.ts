@@ -10,6 +10,7 @@ export interface MCPServerConfig {
   command: string;           // Command to start the MCP server
   args: string[];            // Command line arguments
   env: Record<string, string>;  // Environment variables
+  authToken?: string;        // Authentication token for MCP server
   enabled: boolean;
   lastError?: string;
   lastConnected?: number;     // Unix timestamp

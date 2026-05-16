@@ -16,6 +16,7 @@ interface MCPServerFormData {
   command: string;
   args: string;
   env: string;
+  authToken: string;
   enabled: boolean;
 }
 
@@ -53,6 +54,7 @@ export default function MCPServerPanel() {
         command: values.command,
         args: values.args ? values.args.split(' ').filter(Boolean) : [],
         env: parseEnvVariables(values.env),
+        authToken: values.authToken || undefined,
         enabled: values.enabled,
       };
       await registry.addServer(config);
@@ -217,6 +219,13 @@ export default function MCPServerPanel() {
           >
             <Input.TextArea placeholder='{"GITHUB_TOKEN": "${GITHUB_TOKEN}"}' rows={3} />
           </Form.Item>
+          <Form.Item 
+            name="authToken" 
+            label="认证 Token" 
+            extra="MCP 服务器认证 Token（Bearer Token 或 API Key），支持 ${AUTH_TOKEN} 占位符"
+          >
+            <Input.Password placeholder="Bearer token or API key" />
+          </Form.Item>
           <Form.Item name="enabled" valuePropName="checked" label="启用">
             <Switch />
           </Form.Item>
@@ -288,6 +297,12 @@ export default function MCPServerPanel() {
                               <Tag key={key} style={{ fontSize: 11 }}>{key}: {value}</Tag>
                             ))}
                           </div>
+                        </div>
+                      )}
+                      {server.authToken && (
+                        <div style={{ marginTop: 4 }}>
+                          <Text type="secondary" style={{ fontSize: 11 }}>认证 Token:</Text>
+                          <Tag color="orange" style={{ marginLeft: 4 }}>已配置</Tag>
                         </div>
                       )}
                       {toolsMap[server.id] && toolsMap[server.id].length > 0 && (
