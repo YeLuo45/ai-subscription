@@ -1,7 +1,8 @@
-// Analytics Dashboard - Subscription health + Reading trend visualization
+// Analytics Dashboard - Data visualization with reading trends, health dashboard, and reading time stats
+// Integrates: ReadingTrendChart, HealthDashboard, ReadingTimeStats
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Space, Typography, Segmented, Progress, Badge } from 'antd';
+import { Card, Row, Col, Statistic, Space, Typography, Segmented } from 'antd';
 import {
   BarChartOutlined,
   RiseOutlined,
@@ -9,13 +10,13 @@ import {
   TeamOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  ExclamationCircleOutlined,
-  ThunderboltOutlined,
   FireOutlined,
 } from '@ant-design/icons';
-import { getSubscriptionHealth, getReadingTrend, type SubscriptionHealth, type DailyReadingRecord } from '../services/analytics';
+import { getSubscriptionHealth, getDailyReadingStats, getReadingTimeStats, calculateHealthScore, type SubscriptionHealth } from '../services/analytics';
 import { getUserStats, type UserStats } from '../services/stats';
-import TrendChart from './TrendChart';
+import ReadingTrendChart from './ReadingTrendChart';
+import HealthDashboard from './HealthDashboard';
+import ReadingTimeStats from './ReadingTimeStats';
 
 const { Title, Text } = Typography;
 
@@ -27,23 +28,45 @@ interface Props {
 type TimePeriod = '7d' | '30d' | '90d';
 
 const AnalyticsDashboard: React.FC<Props> = ({ isOpen, onClose }) => {
-  const [period, setPeriod] = useState<TimePeriod>('30d');
+  const [period, setPeriod] = useState<TimePeriod>('7d');
   const [loading, setLoading] = useState(true);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [healthMetrics, setHealthMetrics] = useState<SubscriptionHealth[]>([]);
-  const [readingTrend, setReadingTrend] = useState<DailyReadingRecord[]>([]);
+  const [readingStats, setReadingStats] = useState<{
+    dailyData: Array<{ date: string; value: number }>;
+    weeklyData: Array<{ week: string; daily: number[] }>;
+    averageReadingTime: number;
+    totalReadArticles: number;
+  }>({
+    dailyData: [],
+    weeklyData: [],
+    averageReadingTime: 0,
+    totalReadArticles: 0,
+  });
+  const [healthScore, setHealthScore] = useState(50);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [stats, health, trend] = await Promise.all([
+      const [stats, health, dailyStats, timeStats] = await Promise.all([
         getUserStats(),
         getSubscriptionHealth(),
-        getReadingTrend(period === '7d' ? 7 : period === '30d' ? 30 : 90),
+        getDailyReadingStats(),
+        getReadingTimeStats(),
       ]);
+      
       setUserStats(stats);
       setHealthMetrics(health);
-      setReadingTrend(trend);
+      setReadingStats({
+        dailyData: dailyStats.map(d => ({ date: d.date, value: d.count })),
+        weeklyData: timeStats.weeklyData,
+        averageReadingTime: timeStats.averageReadingTime,
+        totalReadArticles: timeStats.totalReadArticles,
+      });
+      
+      // Calculate overall health score
+      const score = calculateHealthScore();
+      setHealthScore(score > 0 ? score : 50);
     } catch (error) {
       console.error('[AnalyticsDashboard] Failed to load data:', error);
     } finally {
@@ -58,102 +81,6 @@ const AnalyticsDashboard: React.FC<Props> = ({ isOpen, onClose }) => {
   }, [isOpen, loadData]);
 
   if (!isOpen) return null;
-
-  // Format health score color
-  const getHealthColor = (score: number): string => {
-    if (score >= 80) return '#52c41a';
-    if (score >= 60) return '#faad14';
-    return '#ff4d4f';
-  };
-
-  // Format health score badge
-  const getHealthBadge = (score: number): { color: string; text: string } => {
-    if (score >= 80) return { color: 'success', text: '优秀' };
-    if (score >= 60) return { color: 'warning', text: '一般' };
-    return { color: 'error', text: '需关注' };
-  };
-
-  // Health table columns
-  const healthColumns = [
-    {
-      title: '订阅源',
-      dataIndex: 'subscriptionName',
-      key: 'name',
-      render: (name: string, record: SubscriptionHealth) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{name}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }} ellipsis={{ tooltip: record.url }}>
-            {record.url.length > 40 ? record.url.slice(0, 40) + '...' : record.url}
-          </Text>
-        </Space>
-      ),
-    },
-    {
-      title: '健康分',
-      dataIndex: 'healthScore',
-      key: 'healthScore',
-      width: 100,
-      render: (score: number) => {
-        const badge = getHealthBadge(score);
-        return (
-          <Space>
-            <Progress
-              type="circle"
-              percent={score}
-              size={40}
-              strokeColor={getHealthColor(score)}
-              format={() => score}
-            />
-          </Space>
-        );
-      },
-    },
-    {
-      title: '更新频率',
-      dataIndex: 'updateFrequency',
-      key: 'updateFrequency',
-      width: 100,
-      render: (freq: number) => (
-        <Text>{freq > 0 ? `${freq}h` : '-'}</Text>
-      ),
-    },
-    {
-      title: '错误率',
-      dataIndex: 'errorRate',
-      key: 'errorRate',
-      width: 90,
-      render: (rate: number) => {
-        const percent = Math.round(rate * 100);
-        const color = rate < 0.1 ? '#52c41a' : rate < 0.3 ? '#faad14' : '#ff4d4f';
-        return <Text style={{ color }}>{percent}%</Text>;
-      },
-    },
-    {
-      title: '响应时间',
-      dataIndex: 'avgResponseTime',
-      key: 'avgResponseTime',
-      width: 100,
-      render: (ms: number) => (
-        <Text type="secondary">{ms > 0 ? `${ms}ms` : '-'}</Text>
-      ),
-    },
-    {
-      title: '文章数',
-      dataIndex: 'totalArticles',
-      key: 'totalArticles',
-      width: 80,
-      render: (count: number) => <Tag>{count}</Tag>,
-    },
-    {
-      title: '状态',
-      dataIndex: 'enabled',
-      key: 'enabled',
-      width: 80,
-      render: (enabled: boolean) => enabled
-        ? <Badge status="success" text="启用" />
-        : <Badge status="default" text="停用" />,
-    },
-  ];
 
   return (
     <div style={styles.overlay}>
@@ -229,49 +156,84 @@ const AnalyticsDashboard: React.FC<Props> = ({ isOpen, onClose }) => {
                 </Col>
               </Row>
 
-              {/* Reading Trend Chart */}
+              {/* Reading Trend Chart - 7 day line chart */}
               <Card
                 size="small"
-                title="📈 日阅读趋势"
+                title="📈 阅读趋势（7天）"
                 style={{ marginBottom: 16 }}
                 extra={<Text type="secondary">文章数/天</Text>}
               >
-                {readingTrend.length > 0 ? (
-                  <TrendChart
-                    data={readingTrend.map(r => ({ date: r.date, value: r.count }))}
-                    width={650}
-                    height={180}
-                    lineColor="#1890ff"
-                    label="Articles"
-                  />
+                {readingStats.dailyData.length > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <ReadingTrendChart
+                      data={readingStats.dailyData}
+                      width={650}
+                      height={180}
+                      lineColor="#1890ff"
+                      label="Articles"
+                    />
+                  </div>
                 ) : (
                   <div style={styles.emptyChart}>暂无数据</div>
                 )}
               </Card>
 
-              {/* Subscription Health Table */}
-              <Card
-                size="small"
-                title={<><ThunderboltOutlined /> 订阅源健康度</>}
-                style={{ marginBottom: 16 }}
-                extra={<Text type="secondary">基于更新频率、错误率、响应时间</Text>}
-              >
-                {healthMetrics.length > 0 ? (
-                  <Table
-                    size="small"
-                    columns={healthColumns}
-                    dataSource={healthMetrics.map(h => ({ ...h, key: h.subscriptionId }))}
-                    pagination={healthMetrics.length > 10 ? { pageSize: 10 } : false}
-                    scroll={{ x: 700 }}
-                  />
-                ) : (
-                  <div style={styles.emptyText}>暂无订阅源数据</div>
-                )}
-              </Card>
-
-              {/* Quick Stats */}
-              <Row gutter={[12, 12]}>
+              {/* Health Dashboard + Reading Time Stats Row */}
+              <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+                {/* Health Dashboard - Ring Chart */}
                 <Col span={8}>
+                  <Card
+                    size="small"
+                    title="❤️ 健康度仪表盘"
+                    extra={<Text type="secondary">综合评分</Text>}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+                      <HealthDashboard
+                        score={healthScore}
+                        size={150}
+                        strokeWidth={12}
+                        label="Health"
+                      />
+                    </div>
+                    <div style={{ textAlign: 'center', marginTop: 8 }}>
+                      <Space direction="vertical" size={4}>
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                          基于阅读频率、订阅活跃度、文章完成率
+                        </Text>
+                      </Space>
+                    </div>
+                  </Card>
+                </Col>
+                
+                {/* Reading Time Stats - Heatmap */}
+                <Col span={16}>
+                  <Card
+                    size="small"
+                    title="⏱️ 阅读时间统计"
+                    extra={
+                      <Space>
+                        <Text type="secondary">日均: {readingStats.averageReadingTime}min</Text>
+                        <Text type="secondary">已读: {readingStats.totalReadArticles}篇</Text>
+                      </Space>
+                    }
+                  >
+                    {readingStats.weeklyData.length > 0 ? (
+                      <ReadingTimeStats
+                        weeklyData={readingStats.weeklyData}
+                        size={520}
+                        cellSize={36}
+                        cellGap={4}
+                      />
+                    ) : (
+                      <div style={styles.emptyChart}>暂无数据</div>
+                    )}
+                  </Card>
+                </Col>
+              </Row>
+
+              {/* Quick Stats Row */}
+              <Row gutter={[12, 12]}>
+                <Col span={6}>
                   <Card size="small" title="⏱️ 平均更新间隔">
                     <Statistic
                       value={healthMetrics.length > 0
@@ -282,7 +244,7 @@ const AnalyticsDashboard: React.FC<Props> = ({ isOpen, onClose }) => {
                     />
                   </Card>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Card size="small" title="📉 平均错误率">
                     <Statistic
                       value={healthMetrics.length > 0
@@ -295,14 +257,25 @@ const AnalyticsDashboard: React.FC<Props> = ({ isOpen, onClose }) => {
                     />
                   </Card>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Card size="small" title="⚡ 平均响应时间">
                     <Statistic
                       value={healthMetrics.length > 0
                         ? Math.round(healthMetrics.reduce((a, h) => a + h.avgResponseTime, 0) / healthMetrics.length)
                         : 0}
                       suffix="ms"
-                      prefix={<ThunderboltOutlined />}
+                      prefix={<BarChartOutlined />}
+                    />
+                  </Card>
+                </Col>
+                <Col span={6}>
+                  <Card size="small" title="📈 阅读趋势">
+                    <Statistic
+                      value={readingStats.dailyData.length > 0 
+                        ? Math.round(readingStats.dailyData.reduce((a, d) => a + d.value, 0) / readingStats.dailyData.length * 10) / 10
+                        : 0}
+                      suffix="篇/天"
+                      prefix={<RiseOutlined />}
                     />
                   </Card>
                 </Col>
@@ -331,7 +304,7 @@ const styles: Record<string, React.CSSProperties> = {
   panel: {
     backgroundColor: '#fff',
     borderRadius: '12px',
-    width: '850px',
+    width: '900px',
     maxWidth: '95vw',
     maxHeight: '90vh',
     display: 'flex',
@@ -374,11 +347,6 @@ const styles: Record<string, React.CSSProperties> = {
   emptyChart: {
     textAlign: 'center',
     padding: '32px',
-    color: '#999',
-  },
-  emptyText: {
-    textAlign: 'center',
-    padding: '24px',
     color: '#999',
   },
 };
