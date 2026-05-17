@@ -173,6 +173,17 @@ export default defineConfig({
     // for Node.js request tracing and replaced with no-ops in browser
     'import.meta.env.ASYNC_HOOKS_AVAILABLE': 'false',
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['**/__tests__/**/*.test.{ts,tsx}', '**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/', 'dist/', '**/*.d.ts', '**/*.config.*'],
+    },
+  },
   build: {
     rollupOptions: {
       output: {
