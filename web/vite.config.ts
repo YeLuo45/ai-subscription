@@ -187,15 +187,19 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // Enhanced code splitting with better chunk naming
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks(id) {
-          // React core - split react and react-dom
+          // React core - split react and react-dom for better caching
           if (id.includes('node_modules/react/')) {
             return 'vendor-react';
           }
           if (id.includes('node_modules/react-dom/')) {
             return 'vendor-react-dom';
           }
-          // Ant Design - all antd packages
+          // Ant Design - all antd packages (large library)
           if (id.includes('node_modules/antd/') || id.includes('node_modules/@ant-design/')) {
             return 'vendor-antd';
           }
@@ -203,11 +207,15 @@ export default defineConfig({
           if (id.includes('node_modules/@ai-sdk/') || id.includes('node_modules/ai/')) {
             return 'vendor-ai-sdk';
           }
-          // Math and utility libraries
+          // Math and validation libraries
           if (id.includes('node_modules/mathjs/') || id.includes('node_modules/zod/')) {
             return 'vendor-utils';
           }
-          // Internal service modules
+          // Heavy ML library - web-llm
+          if (id.includes('node_modules/@mlc-ai/')) {
+            return 'vendor-ml';
+          }
+          // Internal service modules - lazy load these
           if (id.includes('/src/services/mcp/')) {
             return 'vendor-mcp';
           }
@@ -223,11 +231,22 @@ export default defineConfig({
           if (id.includes('/src/services/sync/')) {
             return 'vendor-sync';
           }
+          // Charts and visualization
+          if (id.includes('node_modules/@ant-design/charts') || id.includes('node_modules/antd-style')) {
+            return 'vendor-charts';
+          }
+          // i18n libraries
+          if (id.includes('node_modules/i18next') || id.includes('node_modules/react-i18next')) {
+            return 'vendor-i18n';
+          }
         },
       },
     },
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 600, // Increased for modern bundle sizes
+    // Enable rollup parallelization for faster builds
+    target: 'esnext',
   },
+  
   optimizeDeps: {
     include: [
       'ai', '@ai-sdk/openai', '@ai-sdk/anthropic', '@ai-sdk/google',

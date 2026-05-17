@@ -1,13 +1,34 @@
 /**
  * AI Subscription Service Worker
- * Implements App Shell caching + StaleWhileRevalidate strategy
- * No external dependencies - pure vanilla JS
+ * Implements Advanced Caching Strategies:
+ * - App Shell: Cache First (instant load)
+ * - Immutable Assets: Cache First with indefinite expiration  
+ * - Dynamic API: Stale-While-Revalidate (speed + freshness)
+ * - Static Resources: Stale-While-Revalidate
+ * - CDN Resources: Cache First with network fallback
+ * - Periodic cache cleanup for dynamic content
  */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const APP_SHELL_CACHE = `appshell-${CACHE_VERSION}`;
+const CDN_CACHE = `cdn-${CACHE_VERSION}`;
+
+// Cache limits to prevent unbounded growth
+const MAX_DYNAMIC_ITEMS = 200;
+const MAX_STATIC_ITEMS = 100;
+
+// CDN domains for external resources (use CDN cache)
+const CDN_DOMAINS = [
+  'cdn.jsdelivr.net',
+  'cdnjs.cloudflare.com',
+  'unpkg.com',
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'fonts.bunny.net',
+  'jsdelivr.global.ssl.fastly.net',
+];
 
 // App Shell assets - core assets that should always be cached
 const APP_SHELL_ASSETS = [
@@ -48,7 +69,8 @@ self.addEventListener('activate', (event) => {
             return ![
               STATIC_CACHE,
               DYNAMIC_CACHE,
-              APP_SHELL_CACHE
+              APP_SHELL_CACHE,
+              CDN_CACHE
             ].includes(key);
           })
           .map((key) => {
@@ -109,6 +131,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // CDN resources: Cache First for performance
+  if (isCdnRequest(url)) {
+    event.respondWith(cacheFirst(request, CDN_CACHE));
+    return;
+  }
+
   // HTML pages: StaleWhileRevalidate for offline support
   if (request.destination === 'document') {
     event.respondWith(staleWhileRevalidate(request, DYNAMIC_CACHE));
@@ -118,6 +146,11 @@ self.addEventListener('fetch', (event) => {
   // Default: Network First with cache fallback
   event.respondWith(networkFirst(request, DYNAMIC_CACHE));
 });
+
+// CDN request detection
+function isCdnRequest(url) {
+  return CDN_DOMAINS.some(domain => url.hostname.includes(domain));
+}
 
 // Check if request is for App Shell asset
 function isAppShellAsset(pathname) {
@@ -226,22 +259,41 @@ async function staleWhileRevalidate(request, cacheName) {
 }
 
 // Periodic cache cleanup - clean up entries older than 7 days in dynamic cache
+// Also enforces cache size limits
 async function cleanupOldCacheEntries(cacheName, maxAgeMs = 7 * 24 * 60 * 60 * 1000) {
   const cache = await caches.open(cacheName);
   const keys = await cache.keys();
   const now = Date.now();
   
+  // Sort by date, oldest first
+  const entriesWithDate = [];
   for (const request of keys) {
     const cached = await cache.match(request);
     if (cached) {
       const dateHeader = cached.headers.get('date');
-      if (dateHeader) {
-        const date = new Date(dateHeader).getTime();
-        if (now - date > maxAgeMs) {
-          await cache.delete(request);
-          console.log('[SW] Deleted stale cache entry:', request.url);
-        }
-      }
+      const date = dateHeader ? new Date(dateHeader).getTime() : 0;
+      entriesWithDate.push({ request, date });
+    }
+  }
+  
+  // Sort by date ascending
+  entriesWithDate.sort((a, b) => a.date - b.date);
+  
+  // Delete entries older than max age
+  const toDelete = entriesWithDate.filter(e => now - e.date > maxAgeMs);
+  for (const { request } of toDelete) {
+    await cache.delete(request);
+    console.log('[SW] Deleted stale cache entry:', request.url);
+  }
+  
+  // If still over limit, delete oldest entries
+  const maxItems = cacheName.includes('dynamic') ? MAX_DYNAMIC_ITEMS : MAX_STATIC_ITEMS;
+  const excessCount = entriesWithDate.length - maxItems;
+  if (excessCount > 0) {
+    const toRemove = entriesWithDate.slice(0, excessCount);
+    for (const { request } of toRemove) {
+      await cache.delete(request);
+      console.log('[SW] Deleted excess cache entry:', request.url);
     }
   }
 }
