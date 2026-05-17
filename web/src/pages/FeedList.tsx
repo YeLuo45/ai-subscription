@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext, Suspense, lazy } from 'react';
+import { useState, useEffect, useCallback, useContext, Suspense, lazy, useRef } from 'react';
 import {
   Layout,
   Menu,
@@ -42,6 +42,8 @@ import {
   BarChartOutlined,
   ApiOutlined,
   MessageOutlined,
+  DownOutlined,
+  UpOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
@@ -82,6 +84,8 @@ import { FeedRecommendPanel } from '../services/feed-recommend/FeedRecommendPane
 import AIAssistantPanel from '../components/AIAssistantPanel';
 import { SensitiveConfirmModal, useSensitiveConfirm } from '../components/SensitiveConfirmModal';
 import { I18nContext } from '../i18n';
+import { useKeyboardShortcuts, SHORTCUT_HINTS } from '../hooks/useKeyboardShortcuts';
+import { useGlobalSearch, useShortcutHints } from '../hooks/useGlobalSearch';
 
 // Lazy load non-critical components for performance
 const MCPServerPanel = lazy(() => import('../components/MCPServerPanel'));
@@ -127,49 +131,71 @@ export default function App() {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const { requestConfirmation, SensitiveModal } = useSensitiveConfirm();
 
-  useEffect(() => {
-    // Cmd+K: focus search
-    const handleCmdK = () => {
-      const searchInput = document.querySelector('.ant-layout-sider input') as HTMLInputElement;
-      searchInput?.focus();
-    };
-    // Cmd+N: open add subscription
-    const handleCmdN = () => setAddModalOpen(true);
-    // Cmd+Shift+T: toggle theme
-    const handleCmdShiftT = () => {
-      if (!settings) return;
-      const current = settings.themeMode;
-      const next = current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
-      handleSaveSettings({ ...settings, themeMode: next } as any);
-    };
-    // Escape: close modals
-    const handleEscape = () => {
-      setAddModalOpen(false);
-      setEditSub(null);
-      setSummaryDrawerOpen(false);
-      setNoteDrawerOpen(false);
-    };
+  // Keyboard navigation state
+  const [focusedGroupIndex, setFocusedGroupIndex] = useState(-1);
+  const [focusedSubIndex, setFocusedSubIndex] = useState(-1);
 
-    function onKeyDown(e: KeyboardEvent) {
-      const parts: string[] = [];
-      if (e.metaKey || e.ctrlKey) parts.push('Cmd');
-      if (e.shiftKey) parts.push('Shift');
-      if (e.key !== 'Control' && e.key !== 'Meta' && e.key !== 'Shift') {
-        parts.push(e.key);
-      }
-      const combo = parts.join('+');
+  // Global search hook for quick navigation
+  const globalSearch = useGlobalSearch({
+    items: subscriptions,
+    getSearchableText: (sub) => `${sub.name} ${sub.url} ${sub.category}`,
+    minChars: 2,
+    maxResults: 8,
+  });
 
-      switch (combo) {
-        case 'Cmd+K': e.preventDefault(); handleCmdK(); break;
-        case 'Cmd+N': e.preventDefault(); handleCmdN(); break;
-        case 'Cmd+Shift+T': e.preventDefault(); handleCmdShiftT(); break;
-        case 'Escape': e.preventDefault(); handleEscape(); break;
-      }
-    }
+  // Shortcut hints
+  const { showHints, setShowHints } = useShortcutHints({
+    '⌘K': '搜索',
+    '⌘N': '新建订阅',
+    '⌘⇧T': '切换主题',
+    '↑↓': '导航',
+    'Enter': '确认',
+    'Esc': '关闭',
+  });
 
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [settings]);
+  // Enhanced keyboard shortcuts using the new hook
+  useKeyboardShortcuts({
+    handlers: {
+      'Cmd+K': () => {
+        const searchInput = document.querySelector('.ant-layout-sider input') as HTMLInputElement;
+        searchInput?.focus();
+      },
+      'Cmd+N': () => setAddModalOpen(true),
+      'Cmd+Shift+T': () => {
+        if (!settings) return;
+        const current = settings.themeMode;
+        const next = current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
+        handleSaveSettings({ ...settings, themeMode: next } as any);
+      },
+      'Escape': () => {
+        setAddModalOpen(false);
+        setEditSub(null);
+        setSummaryDrawerOpen(false);
+        setNoteDrawerOpen(false);
+        setFocusedGroupIndex(-1);
+        setFocusedSubIndex(-1);
+      },
+      'ArrowDown': () => {
+        if (focusedGroupIndex >= 0) {
+          // Navigate within groups
+          setFocusedSubIndex(0);
+        } else {
+          setFocusedGroupIndex(0);
+        }
+      },
+      'ArrowUp': () => {
+        if (focusedSubIndex > 0) {
+          setFocusedSubIndex(prev => prev - 1);
+        } else if (focusedGroupIndex > 0) {
+          setFocusedGroupIndex(prev => prev - 1);
+          setFocusedSubIndex(-1);
+        }
+      },
+    },
+    enabled: true,
+    stopPropagation: true,
+    preventDefault: true,
+  });
 
   const loadData = useCallback(async () => {
     const [subs, mods, sets, hist, gs] = await Promise.all([
@@ -1284,6 +1310,70 @@ export default function App() {
 
       {/* Sensitive Operation Confirmation Modal */}
       {SensitiveModal}
+
+      {/* Keyboard Shortcuts Hints Overlay */}
+      {showHints && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => setShowHints(false)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              padding: 24,
+              borderRadius: 8,
+              minWidth: 320,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <Title level={5}>键盘快捷键</Title>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>全局搜索</Text>
+                <Tag>{SHORTCUT_HINTS.search}</Tag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>新建订阅</Text>
+                <Tag>{SHORTCUT_HINTS.newItem}</Tag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>切换主题</Text>
+                <Tag>{SHORTCUT_HINTS.theme}</Tag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>向上导航</Text>
+                <Tag>{SHORTCUT_HINTS.navigateUp}</Tag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>向下导航</Text>
+                <Tag>{SHORTCUT_HINTS.navigateDown}</Tag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>确认/打开</Text>
+                <Tag>{SHORTCUT_HINTS.open}</Tag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>关闭/取消</Text>
+                <Tag>{SHORTCUT_HINTS.escape}</Tag>
+              </div>
+            </div>
+            <Button type="link" onClick={() => setShowHints(false)} style={{ marginTop: 16 }}>
+              按 Esc 关闭
+            </Button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
