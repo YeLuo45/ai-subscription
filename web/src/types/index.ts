@@ -110,6 +110,72 @@ export interface EmailSettings {
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+// ============ Advanced Personalization ============
+export type LayoutDensity = 'compact' | 'comfortable' | 'spacious';
+export type SidebarPosition = 'left' | 'right';
+export type WidgetId = 'weather' | 'quick-actions' | 'reading-progress' | 'trending-topics' | 'ai-insights' | 'subscription-stats';
+
+export interface WidgetConfig {
+  id: WidgetId;
+  enabled: boolean;
+  order: number;
+  size?: 'small' | 'medium' | 'large';
+  settings?: Record<string, unknown>;
+}
+
+export interface ThemeCustomization {
+  primaryColor: string;
+  borderRadius: number;
+  fontSize: 'small' | 'medium' | 'large';
+  density: LayoutDensity;
+  sidebarPosition: SidebarPosition;
+  sidebarCollapsed: boolean;
+  accentGradient: boolean;
+}
+
+export interface LayoutCustomization {
+  density: LayoutDensity;
+  sidebarPosition: SidebarPosition;
+  sidebarWidth: number;
+  contentMaxWidth: number;
+  headerHeight: number;
+}
+
+export interface PersonalizationSettings {
+  theme: ThemeCustomization;
+  layout: LayoutCustomization;
+  widgets: WidgetConfig[];
+  enabled: boolean;
+}
+
+export const DEFAULT_PERSONALIZATION: PersonalizationSettings = {
+  theme: {
+    primaryColor: '#1890ff',
+    borderRadius: 8,
+    fontSize: 'medium',
+    density: 'comfortable',
+    sidebarPosition: 'left',
+    sidebarCollapsed: false,
+    accentGradient: false,
+  },
+  layout: {
+    density: 'comfortable',
+    sidebarPosition: 'left',
+    sidebarWidth: 240,
+    contentMaxWidth: 1200,
+    headerHeight: 64,
+  },
+  widgets: [
+    { id: 'weather', enabled: false, order: 0 },
+    { id: 'quick-actions', enabled: true, order: 1 },
+    { id: 'reading-progress', enabled: false, order: 2 },
+    { id: 'trending-topics', enabled: false, order: 3 },
+    { id: 'ai-insights', enabled: true, order: 4 },
+    { id: 'subscription-stats', enabled: true, order: 5 },
+  ],
+  enabled: true,
+};
+
 export interface AppSettings {
   push: PushSettings;
   email: EmailSettings;
@@ -122,6 +188,7 @@ export interface AppSettings {
   themeMode: ThemeMode;
   locale: 'zh' | 'en';
   localModeEnabled?: boolean;  // Enable local model inference (WebLLM)
+  personalization?: PersonalizationSettings; // Advanced personalization
 }
 
 export const PRESET_SUBSCRIPTIONS: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt' | 'lastFetchedAt'>[] = [

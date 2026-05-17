@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Tabs, Card, Form, Input, InputNumber, Switch, Button, message, Divider, Space, Tag, Alert, Select, Empty } from 'antd';
-import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined, ApiOutlined, RocketOutlined } from '@ant-design/icons';
+import { SettingOutlined, GlobalOutlined, CloudSyncOutlined, DeleteOutlined, TranslationOutlined, ShareAltOutlined, MailOutlined, ApiOutlined, RocketOutlined, BgColorsOutlined } from '@ant-design/icons';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { useI18n } from '../i18n';
 import { TagManager } from './TagManager';
@@ -17,6 +17,7 @@ import { SubscriberList } from './SubscriberList';
 import { EmailTemplateEditor } from './EmailTemplateEditor';
 import { EmailSender } from './EmailSender';
 import { DeveloperPanel } from './DeveloperPanel';
+import { PersonalizationPanel } from './PersonalizationPanel';
 import * as syncService from '../services/syncService';
 import type { PublicList, FeedInfo } from '../types/publicList';
 import * as publicListDB from '../db/publicListDB';
@@ -53,6 +54,9 @@ export const Settings: React.FC = () => {
         </TabPane>
         <TabPane tab={<span><RocketOutlined /> {t('settings.workflow')}</span>} key="workflow">
           <WorkflowList />
+        </TabPane>
+        <TabPane tab={<span><BgColorsOutlined /> 个性化</span>} key="personalization">
+          <PersonalizationPanel />
         </TabPane>
       </Tabs>
     </div>

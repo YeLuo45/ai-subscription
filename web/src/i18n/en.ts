@@ -331,4 +331,13 @@ export const en: typeof zh = {
     noRules: 'No workflow rules',
     noLogs: 'No execution logs',
   },
+  personalization: {
+    title: 'Personalization',
+    theme: 'Theme Customization',
+    layout: 'Layout Settings',
+    widgets: 'Widgets',
+    reset: 'Reset',
+    save: 'Save Settings',
+    unsavedChanges: 'You have unsaved changes',
+  },
 };

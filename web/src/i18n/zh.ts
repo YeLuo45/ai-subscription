@@ -332,4 +332,13 @@ export const zh = {
     noRules: '暂无工作流规则',
     noLogs: '暂无执行日志',
   },
+  personalization: {
+    title: '个性化定制',
+    theme: '主题定制',
+    layout: '布局自定义',
+    widgets: '小部件',
+    reset: '重置',
+    save: '保存设置',
+    unsavedChanges: '您有未保存的更改',
+  },
 };
