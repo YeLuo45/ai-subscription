@@ -4,6 +4,7 @@ import cors from 'cors';
 import pluginsRouter from './routes/plugins';
 import uploadRouter from './routes/upload';
 import reviewRouter from './routes/review';
+import platformRouter from './routes/platform';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,6 +23,7 @@ app.get('/health', (req, res) => {
 app.use('/api/plugins', pluginsRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/review', reviewRouter);
+app.use('/api/platform', platformRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -47,6 +49,18 @@ app.listen(PORT, () => {
   console.log(`  POST   /api/review`);
   console.log(`  POST   /api/review/:id/approve`);
   console.log(`  POST   /api/review/:id/reject`);
+  console.log(`  GET    /api/platform/health`);
+  console.log(`  GET    /api/platform/plugins`);
+  console.log(`  GET    /api/platform/plugins/:id`);
+  console.log(`  GET    /api/platform/plugins/:id/versions`);
+  console.log(`  GET    /api/platform/keys`);
+  console.log(`  POST   /api/platform/keys`);
+  console.log(`  DELETE /api/platform/keys/:id`);
+  console.log(`  GET    /api/platform/webhooks`);
+  console.log(`  POST   /api/platform/webhooks`);
+  console.log(`  DELETE /api/platform/webhooks/:id`);
+  console.log(`  GET    /api/platform/stats`);
+  console.log(`  GET    /api/platform/usage`);
 });
 
 export default app;
