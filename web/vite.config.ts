@@ -150,6 +150,7 @@ async function setupApiEndpoints(server: ViteDevServer) {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     {
