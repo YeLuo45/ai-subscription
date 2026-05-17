@@ -1,13 +1,22 @@
 /**
- * 设置页面 - AI 模型配置 + 推送设置
+ * 设置页面 - AI 模型配置 + 推送设置 + 数据管理
  */
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Tabs, Table, Button, Space, Tag, Typography, Form, Input,
   Select, Switch, Divider, message, Modal, Alert,
+  Upload, Popconfirm,
 } from 'antd';
-import { PlusOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, CheckCircleOutlined, CloseCircleOutlined, DownloadOutlined, UploadOutlined, FileTextOutlined } from '@ant-design/icons';
 import { AppSettings, ModelConfig } from '../types';
+import {
+  generateOPML,
+  generateJSONBackup,
+  parseOPML,
+  parseJSONBackup,
+  downloadFile,
+  readFileAsText,
+} from '../utils/export';
 
 const { Title, Text } = Typography;
 
@@ -304,6 +313,157 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   message="Web 端推送依赖浏览器通知权限，请在弹窗中允许通知。"
                   style={{ marginTop: 8 }}
                 />
+              </div>
+            ),
+          },
+          {
+            key: 'data',
+            label: '💾 数据管理',
+            children: (
+              <div>
+                <Alert
+                  type="info"
+                  showIcon
+                  message="数据导出/导入功能"
+                  description="您可以导出订阅源为 OPML 格式（通用订阅格式）或 JSON 备份（包含模型配置）。导入功能支持 OPML 和 JSON 格式。"
+                  style={{ marginBottom: 16 }}
+                />
+
+                <Divider orientation="left">导出</Divider>
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  <div>
+                    <Button
+                      icon={<DownloadOutlined />}
+                      onClick={() => {
+                        const opml = generateOPML(settings);
+                        downloadFile(opml, `ai-subscription-${Date.now()}.opml`, 'text/xml;charset=utf-8');
+                        message.success('OPML 导出成功');
+                      }}
+                    >
+                      导出为 OPML（订阅源格式）
+                    </Button>
+                    <Text type="secondary" style={{ marginLeft: 12 }}>
+                      通用订阅格式，可导入到其他 RSS 阅读器
+                    </Text>
+                  </div>
+
+                  <div>
+                    <Button
+                      icon={<DownloadOutlined />}
+                      onClick={() => {
+                        const json = generateJSONBackup(settings);
+                        downloadFile(json, `ai-subscription-backup-${Date.now()}.json`, 'application/json');
+                        message.success('JSON 备份导出成功');
+                      }}
+                    >
+                      导出为 JSON 备份
+                    </Button>
+                    <Text type="secondary" style={{ marginLeft: 12 }}>
+                      包含订阅源和模型配置（API Key 已脱敏）
+                    </Text>
+                  </div>
+                </Space>
+
+                <Divider orientation="left">导入</Divider>
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  <Upload
+                    accept=".opml,.xml,.json"
+                    showUploadList={false}
+                    beforeUpload={async (file) => {
+                      try {
+                        const text = await readFileAsText(file);
+                        const nameLower = file.name.toLowerCase();
+
+                        if (nameLower.endsWith('.opml') || nameLower.endsWith('.xml')) {
+                          // 解析 OPML
+                          const parsed = parseOPML(text);
+                          if (parsed.length === 0) {
+                            message.error('OPML 文件中未找到订阅源');
+                            return false;
+                          }
+
+                          const newSubs = parsed
+                            .filter(p => !settings.subscriptions.some(s => s.url === p.url))
+                            .map(p => ({
+                              id: `import_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                              name: p.name,
+                              url: p.url,
+                              type: p.type,
+                              category: p.category,
+                              enabled: true,
+                              aiSummaryEnabled: true,
+                              fetchIntervalMinutes: 60,
+                              createdAt: new Date().toISOString(),
+                              updatedAt: new Date().toISOString(),
+                            }));
+
+                          if (newSubs.length === 0) {
+                            message.warning('所有订阅源已存在，无需导入');
+                            return false;
+                          }
+
+                          onUpdateSettings({
+                            ...settings,
+                            subscriptions: [...settings.subscriptions, ...newSubs],
+                          });
+                          message.success(`成功导入 ${newSubs.length} 个订阅源`);
+                        } else if (nameLower.endsWith('.json')) {
+                          // 解析 JSON 备份
+                          const parsed = parseJSONBackup(text);
+                          if (!parsed || !parsed.subscriptions) {
+                            message.error('JSON 备份文件格式无效');
+                            return false;
+                          }
+
+                          const existingUrls = new Set(settings.subscriptions.map(s => s.url));
+                          const newSubs = parsed.subscriptions.filter(
+                            (s: { url: string }) => !existingUrls.has(s.url)
+                          );
+
+                          if (newSubs.length === 0) {
+                            message.warning('所有订阅源已存在，无需导入');
+                            return false;
+                          }
+
+                          onUpdateSettings({
+                            ...settings,
+                            subscriptions: [...settings.subscriptions, ...newSubs],
+                          });
+                          message.success(`成功导入 ${newSubs.length} 个订阅源（JSON 格式）`);
+                        }
+                      } catch (err) {
+                        console.error('Import failed:', err);
+                        message.error('文件解析失败，请检查文件格式');
+                      }
+                      return false; // 阻止默认上传行为
+                    }}
+                  >
+                    <Button icon={<UploadOutlined />}>导入 OPML 或 JSON 备份</Button>
+                  </Upload>
+                  <Text type="secondary">
+                    支持 .opml、.xml、.json 格式文件
+                  </Text>
+                </Space>
+
+                <Divider orientation="left">危险操作</Divider>
+                <Popconfirm
+                  title="确定清空所有订阅源？"
+                  description="此操作不可恢复，所有订阅源将被永久删除。"
+                  onConfirm={() => {
+                    onUpdateSettings({
+                      ...settings,
+                      subscriptions: [],
+                    });
+                    message.success('已清空所有订阅源');
+                  }}
+                  okText="确定清空"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
+                >
+                  <Button danger>
+                    清空所有订阅源
+                  </Button>
+                </Popconfirm>
               </div>
             ),
           },
