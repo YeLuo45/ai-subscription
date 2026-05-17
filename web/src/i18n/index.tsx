@@ -1,19 +1,31 @@
 /**
  * i18n - Internationalization module
- * Supports zh/en with auto-detection and localStorage persistence
+ * Supports zh/en/th/vi/id/de/fr/es with auto-detection and localStorage persistence
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import zhData from '../locales/zh.json';
 import enData from '../locales/en.json';
+import thData from '../locales/th.json';
+import viData from '../locales/vi.json';
+import idData from '../locales/id.json';
+import deData from '../locales/de.json';
+import frData from '../locales/fr.json';
+import esData from '../locales/es.json';
 import { getSettings, saveSettings } from '../services/storage';
 
-type Locale = 'zh' | 'en';
+type Locale = 'en' | 'zh' | 'th' | 'vi' | 'id' | 'de' | 'fr' | 'es';
 type Translations = typeof zhData;
 
 const translations: Record<Locale, Translations> = {
-  zh: zhData,
   en: enData,
+  zh: zhData,
+  th: thData,
+  vi: viData,
+  id: idData,
+  de: deData,
+  fr: frData,
+  es: esData,
 };
 
 interface I18nContextType {
@@ -42,21 +54,26 @@ function getNestedValue(obj: any, path: string): string {
 }
 
 /**
- * Detect browser language and map to zh/en
+ * Detect browser language and map to our supported locales
  */
 function detectBrowserLanguage(): Locale {
   if (typeof navigator === 'undefined') {
-    return 'zh';
+    return 'en';
   }
   
   const browserLang = navigator.language || '';
+  const lang = browserLang.toLowerCase();
   
   // Map browser language codes to our supported locales
-  if (browserLang.startsWith('zh')) {
-    return 'zh';
-  }
+  if (lang.startsWith('zh')) return 'zh';
+  if (lang.startsWith('th')) return 'th';
+  if (lang.startsWith('vi')) return 'vi';
+  if (lang.startsWith('id')) return 'id';
+  if (lang.startsWith('de')) return 'de';
+  if (lang.startsWith('fr')) return 'fr';
+  if (lang.startsWith('es')) return 'es';
   
-  // Default to English for all other languages
+  // Default to English
   return 'en';
 }
 
@@ -66,8 +83,9 @@ function detectBrowserLanguage(): Locale {
 async function getInitialLocale(): Promise<Locale> {
   try {
     const settings = await getSettings();
-    if (settings.locale && (settings.locale === 'zh' || settings.locale === 'en')) {
-      return settings.locale;
+    const supportedLocales: Locale[] = ['en', 'zh', 'th', 'vi', 'id', 'de', 'fr', 'es'];
+    if (settings.locale && supportedLocales.includes(settings.locale as Locale)) {
+      return settings.locale as Locale;
     }
   } catch {
     // Storage not ready, use auto-detection
