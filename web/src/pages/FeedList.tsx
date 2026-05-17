@@ -45,6 +45,7 @@ import {
   DownOutlined,
   UpOutlined,
   TeamOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
@@ -88,6 +89,7 @@ import { I18nContext } from '../i18n';
 import { useKeyboardShortcuts, SHORTCUT_HINTS } from '../hooks/useKeyboardShortcuts';
 import { useGlobalSearch, useShortcutHints } from '../hooks/useGlobalSearch';
 import CommunityPage from './Community';
+import Explorer from './Explorer';
 
 // Lazy load non-critical components for performance
 const MCPServerPanel = lazy(() => import('../components/MCPServerPanel'));
@@ -103,7 +105,7 @@ const LazyLoadingFallback: React.FC = () => (
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats' | 'category' | 'recommend' | 'analytics' | 'ai-assistant' | 'community';
+type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats' | 'category' | 'recommend' | 'analytics' | 'ai-assistant' | 'community' | 'explorer';
 
 export default function App() {
   const { t, locale, setLocale } = useContext(I18nContext);
@@ -262,6 +264,7 @@ export default function App() {
     { key: 'analytics', icon: <BarChartOutlined />, label: t('sidebar.analytics') },
     { key: 'ai-assistant', icon: <MessageOutlined />, label: 'AI 助手' },
     { key: 'community', icon: <TeamOutlined />, label: t('sidebar.community', '社区') },
+    { key: 'explorer', icon: <ExperimentOutlined />, label: '高级探索' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -1276,6 +1279,7 @@ export default function App() {
           {activeMenu === 'analytics' && <Suspense fallback={<LazyLoadingFallback />}><div style={{ padding: 16 }}><AnalyticsDashboard isOpen={true} onClose={() => setActiveMenu('feeds')} /></div></Suspense>}
           {activeMenu === 'ai-assistant' && <AIAssistantPanel open={true} onClose={() => setActiveMenu('feeds')} />}
           {activeMenu === 'community' && <CommunityPage />}
+          {activeMenu === 'explorer' && <Explorer />}
         </Content>
       </Layout>
 
