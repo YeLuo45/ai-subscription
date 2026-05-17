@@ -1,6 +1,8 @@
 /**
  * MCPServerRegistry - Singleton registry for managing MCP server configurations
  * and client instances. Handles persistence to localStorage and connection lifecycle.
+ * 
+ * Security: authToken is encrypted using cryptoService before localStorage persistence.
  */
 
 import type {
@@ -13,13 +15,19 @@ import type {
 } from './types';
 import { MCPClient, createMCPClient } from './client';
 import { MCP_STORAGE_KEY, DEFAULT_MCP_CONFIG } from './types';
+import {
+  encryptBearerToken,
+  decryptBearerToken,
+  isEncryptionInitialized,
+} from '../crypto/cryptoService';
 
-// LocalStorage helper functions
+// localStorage helper functions
 function loadConfig(): MCPClientConfig {
   try {
     const stored = localStorage.getItem(MCP_STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const config = JSON.parse(stored) as MCPClientConfig;
+      return config;
     }
   } catch (error) {
     console.error('[MCP Registry] Failed to load config:', error);
@@ -27,9 +35,53 @@ function loadConfig(): MCPClientConfig {
   return DEFAULT_MCP_CONFIG;
 }
 
-function saveConfig(config: MCPClientConfig): void {
+/**
+ * Decrypt authToken for all servers in the config
+ */
+async function decryptServerAuthTokens(servers: MCPServerConfig[]): Promise<MCPServerConfig[]> {
+  const result: MCPServerConfig[] = [];
+  for (const server of servers) {
+    const decryptedServer = { ...server };
+    if (server.authToken && server.authToken.startsWith('enc:')) {
+      try {
+        const encrypted = server.authToken.slice(4); // Remove 'enc:' prefix
+        decryptedServer.authToken = await decryptBearerToken(encrypted);
+      } catch (err) {
+        console.error(`[MCP Registry] Failed to decrypt authToken for server ${server.id}:`, err);
+      }
+    }
+    result.push(decryptedServer);
+  }
+  return result;
+}
+
+/**
+ * Encrypt authToken for storage
+ * Returns the encrypted value prefixed with 'enc:' for identification
+ */
+async function encryptServerAuthToken(authToken: string): Promise<string> {
+  if (!authToken) return '';
+  const encrypted = await encryptBearerToken(authToken);
+  return `enc:${encrypted}`;
+}
+
+async function saveConfig(config: MCPClientConfig): Promise<void> {
   try {
-    localStorage.setItem(MCP_STORAGE_KEY, JSON.stringify(config));
+    // Create a copy with encrypted authTokens for storage
+    const serversWithEncryptedToken = await Promise.all(
+      config.servers.map(async (server) => ({
+        ...server,
+        authToken: server.authToken 
+          ? await encryptServerAuthToken(server.authToken)
+          : server.authToken,
+      }))
+    );
+    
+    const configToSave = {
+      ...config,
+      servers: serversWithEncryptedToken,
+    };
+    localStorage.setItem(MCP_STORAGE_KEY, JSON.stringify(configToSave));
   } catch (error) {
     console.error('[MCP Registry] Failed to save config:', error);
   }
@@ -122,7 +174,7 @@ class MCPServerRegistry {
     };
 
     this.config.servers.push(newServer);
-    saveConfig(this.config);
+    await saveConfig(this.config);
 
     this.serverStatuses.set(id, {
       serverId: id,
@@ -155,7 +207,7 @@ class MCPServerRegistry {
     };
 
     this.config.servers[index] = updatedServer;
-    saveConfig(this.config);
+    await saveConfig(this.config);
 
     this.emit({
       type: 'serverUpdated',
@@ -178,7 +230,7 @@ class MCPServerRegistry {
     await this.disconnectServer(serverId);
 
     this.config.servers.splice(index, 1);
-    saveConfig(this.config);
+    await saveConfig(this.config);
 
     this.serverStatuses.delete(serverId);
     this.clients.delete(serverId);

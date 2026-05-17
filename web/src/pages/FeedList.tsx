@@ -80,6 +80,7 @@ import Stats from './Stats';
 import { FeedCategoryPanel } from '../services/feed-category/FeedCategoryPanel';
 import { FeedRecommendPanel } from '../services/feed-recommend/FeedRecommendPanel';
 import AIAssistantPanel from '../components/AIAssistantPanel';
+import { SensitiveConfirmModal, useSensitiveConfirm } from '../components/SensitiveConfirmModal';
 import { I18nContext } from '../i18n';
 
 // Lazy load non-critical components for performance
@@ -124,6 +125,7 @@ export default function App() {
   const [showSelectMode, setShowSelectMode] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const { requestConfirmation, SensitiveModal } = useSensitiveConfirm();
 
   useEffect(() => {
     // Cmd+K: focus search
@@ -279,10 +281,12 @@ export default function App() {
     }
   }
 
-  async function handleDeleteSubscription(id: string) {
-    await deleteSubscription(id);
-    setSubscriptions((prev) => prev.filter((s) => s.id !== id));
-    message.success(t('feed.deleteSuccess'));
+  async function handleDeleteSubscription(id: string, subName?: string) {
+    requestConfirmation('delete_subscription', subName, async () => {
+      await deleteSubscription(id);
+      setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      message.success(t('feed.deleteSuccess'));
+    });
   }
 
   async function handleToggleEnabled(sub: Subscription) {
@@ -654,7 +658,7 @@ export default function App() {
                         ]}
                       />,
                       <Tooltip key="edit" title="编辑"><Button icon={<EditOutlined />} size="small" onClick={() => { setEditSub(sub); modelForm.setFieldsValue(sub); }} /></Tooltip>,
-                      <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id)}>
+                      <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id, sub.name)}>
                         <Button icon={<DeleteOutlined />} size="small" danger />
                       </Popconfirm>,
                     ]}
@@ -739,7 +743,7 @@ export default function App() {
                         ]}
                     />,
                     <Tooltip key="edit" title="编辑"><Button icon={<EditOutlined />} size="small" onClick={() => { setEditSub(sub); modelForm.setFieldsValue(sub); }} /></Tooltip>,
-                    <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id)}>
+                    <Popconfirm key="delete" title="确认删除？" onConfirm={() => handleDeleteSubscription(sub.id, sub.name)}>
                       <Button icon={<DeleteOutlined />} size="small" danger />
                     </Popconfirm>,
                   ]}
@@ -1277,6 +1281,9 @@ export default function App() {
           <NoteEditor articleId={noteArticleId} articleTitle={noteArticleTitle} />
         )}
       </Drawer>
+
+      {/* Sensitive Operation Confirmation Modal */}
+      {SensitiveModal}
     </Layout>
   );
 }

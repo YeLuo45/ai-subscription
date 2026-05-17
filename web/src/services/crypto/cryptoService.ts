@@ -270,6 +270,50 @@ export async function decryptApiToken(encryptedToken: string): Promise<string> {
 }
 
 /**
+ * Encrypt API Key for secure storage
+ * Uses separate encryption context from generic encrypt to allow key rotation
+ */
+export async function encryptApiKey(apiKey: string): Promise<string> {
+  if (!apiKey) return '';
+  return encrypt(`api_key:${apiKey}`);
+}
+
+/**
+ * Decrypt API Key from storage
+ */
+export async function decryptApiKey(encryptedApiKey: string): Promise<string> {
+  if (!encryptedApiKey) return '';
+  const decrypted = await decrypt(encryptedApiKey);
+  // Strip prefix if present
+  if (decrypted.startsWith('api_key:')) {
+    return decrypted.slice(8);
+  }
+  return decrypted;
+}
+
+/**
+ * Encrypt Bearer Token for MCP authentication
+ * Stores with prefix for identification during decryption
+ */
+export async function encryptBearerToken(token: string): Promise<string> {
+  if (!token) return '';
+  return encrypt(`bearer:${token}`);
+}
+
+/**
+ * Decrypt Bearer Token for MCP authentication
+ */
+export async function decryptBearerToken(encryptedToken: string): Promise<string> {
+  if (!encryptedToken) return '';
+  const decrypted = await decrypt(encryptedToken);
+  // Strip prefix if present
+  if (decrypted.startsWith('bearer:')) {
+    return decrypted.slice(7);
+  }
+  return decrypted;
+}
+
+/**
  * Encrypt cookie value for storage
  */
 export async function encryptCookie(cookie: string): Promise<string> {
