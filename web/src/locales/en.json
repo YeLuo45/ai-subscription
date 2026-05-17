@@ -20,7 +20,8 @@
     "stats": "Statistics",
     "category": "Smart Category",
     "recommend": "Smart Recommendations",
-    "analytics": "Analytics"
+    "analytics": "Analytics",
+    "community": "Community"
   },
   "feed": {
     "noFeeds": "No feeds yet",
@@ -463,5 +464,42 @@
     "disconnected": "Disconnected",
     "operationFailed": "Operation failed",
     "syncNow": "Sync Now"
+  },
+  "community": {
+    "title": "Community",
+    "explore": "Explore",
+    "myLists": "My Lists",
+    "subscriptions": "Subscriptions",
+    "createProfile": "Create Profile",
+    "editProfile": "Edit Profile",
+    "searchPlaceholder": "Search public lists or users...",
+    "createList": "Create Public List",
+    "noLists": "You haven't created any public lists yet",
+    "noSubscriptions": "Subscribe to public lists you're interested in",
+    "listName": "List Name",
+    "listDescription": "List Description",
+    "selectFeeds": "Select Feeds",
+    "feedCount": "feeds",
+    "subscribers": "subscribers",
+    "views": "views",
+    "follow": "Follow",
+    "following": "Following",
+    "followers": "Followers",
+    "share": "Share",
+    "comments": "Comments",
+    "updatedAgo": "days ago",
+    "profileCreated": "Profile created",
+    "profileUpdated": "Profile updated",
+    "listCreated": "Public list created",
+    "listUpdated": "Public list updated",
+    "listDeleted": "Deleted",
+    "linkCopied": "Link copied",
+    "username": "Username",
+    "displayName": "Display Name",
+    "bio": "Bio",
+    "usernamePlaceholder": "Used in profile URL",
+    "displayNamePlaceholder": "Name others see",
+    "bioPlaceholder": "Tell us about yourself (optional)",
+    "recommendedUsers": "Recommended Users"
   }
 }

@@ -20,7 +20,8 @@
     "stats": "统计",
     "category": "智能分类",
     "recommend": "智能推荐",
-    "analytics": "数据分析"
+    "analytics": "数据分析",
+    "community": "社区"
   },
   "feed": {
     "noFeeds": "暂无订阅源",
@@ -463,5 +464,42 @@
     "disconnected": "已断开连接",
     "operationFailed": "操作失败",
     "syncNow": "立即同步"
+  },
+  "community": {
+    "title": "社区",
+    "explore": "发现",
+    "myLists": "我的列表",
+    "subscriptions": "我的订阅",
+    "createProfile": "创建个人资料",
+    "editProfile": "编辑资料",
+    "searchPlaceholder": "搜索公开列表或用户...",
+    "createList": "创建公开列表",
+    "noLists": "你还没有创建任何公开列表",
+    "noSubscriptions": "订阅感兴趣的公开列表",
+    "listName": "列表名称",
+    "listDescription": "列表描述",
+    "selectFeeds": "选择订阅源",
+    "feedCount": "个订阅源",
+    "subscribers": "订阅",
+    "views": "浏览",
+    "follow": "关注",
+    "following": "已关注",
+    "followers": "粉丝",
+    "share": "分享",
+    "comments": "评论",
+    "updatedAgo": "天前更新",
+    "profileCreated": "个人资料已创建",
+    "profileUpdated": "个人资料已更新",
+    "listCreated": "公开列表已创建",
+    "listUpdated": "公开列表已更新",
+    "listDeleted": "已删除",
+    "linkCopied": "链接已复制",
+    "username": "用户名",
+    "displayName": "显示名称",
+    "bio": "个人简介",
+    "usernamePlaceholder": "用于个人主页URL",
+    "displayNamePlaceholder": "别人看到的名字",
+    "bioPlaceholder": "简单介绍一下自己（可选）",
+    "recommendedUsers": "推荐用户"
   }
 }
