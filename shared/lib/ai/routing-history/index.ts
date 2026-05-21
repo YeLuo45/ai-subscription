@@ -5,3 +5,5 @@
 
 export * from './types';
 export * from './storage';
+export * from './analytics';
+export * from './recommender';
