@@ -1,11 +1,21 @@
 /**
  * LLM Router - Unified Interface for AI Model Routing
  * Provides routeAndCall with automatic thinking config injection and fallback
+ * Enhanced with cost-aware routing, provider health checking, and budget control
  */
 
 import { callLLM } from './llm';
 import type { SimpleMessage, ThinkingConfig } from './types/provider';
-import { AI_SUBSCRIPTION_PROVIDERS, findModelForTask, type TaskType, type RoutingCondition } from './providers-ai-subscription';
+import { AI_SUBSCRIPTION_PROVIDERS, findModelForTask, type TaskType, type RoutingCondition, type RouterModelInfo } from './providers-ai-subscription';
+
+// Cost optimizer imports
+import {
+  estimateCost,
+  getHealthChecker,
+  getBudgetController,
+  selectBestModel,
+  type ProviderHealth,
+} from './cost-optimizer';
 
 // Re-export TaskType for convenience
 export { type TaskType } from './providers-ai-subscription';
@@ -104,7 +114,10 @@ export async function routeAndCall(
     conditions,
   } = options;
 
-  // Determine which model to use
+  // Get content length for routing decisions
+  const contentLength = messages.reduce((len, msg) => len + (msg.content?.length || 0), 0);
+  
+  // Determine which model to use with cost-aware routing
   let selectedModelId: string;
   let selectedProviderId: string;
 
@@ -125,12 +138,87 @@ export async function routeAndCall(
     selectedModelId = explicitModel;
     selectedProviderId = explicitProvider;
   } else {
-    const modelInfo = findModelForTask(taskType, undefined, conditions);
-    if (!modelInfo) {
+    // Cost-aware routing: estimate cost, check health, and score models
+    const costEst = estimateCost(messages.map(m => m.content || '').join('\n'), taskType);
+    console.log(`[Cost Optimizer] ${taskType} cost estimate: ~${costEst.inputTokens} tokens, ~$${costEst.costUSD.toFixed(6)} USD`);
+
+    // Check budget limits
+    const budgetController = getBudgetController();
+    const { throttle, reason: budgetReason } = await budgetController.shouldThrottle();
+    
+    if (throttle) {
+      console.warn(`[Cost Optimizer] Budget exceeded: ${budgetReason}`);
+      const fallback = budgetController.getFallbackStrategy();
+      
+      if (fallback === 'local') {
+        // Fall back to local model
+        const modelInfo = findModelForTask(taskType, 'local', conditions);
+        if (modelInfo) {
+          selectedModelId = modelInfo.modelId;
+          selectedProviderId = 'local';
+          console.log(`[Cost Optimizer] Falling back to local model due to budget`);
+        } else {
+          throw new Error(`Budget exceeded and no local fallback available for: ${taskType}`);
+        }
+      } else if (fallback === 'reject') {
+        throw new Error(`Budget exceeded: ${budgetReason}`);
+      } else {
+        // free-tier: try cheapest available
+        console.log(`[Cost Optimizer] Budget exceeded, searching for free-tier option`);
+      }
+    }
+
+    // Check provider health for all available providers
+    const healthChecker = getHealthChecker();
+    const healthMap = await healthChecker.checkAllProviders();
+    
+    // Get preference from conditions or default to 'balanced'
+    const preference = conditions?.preference || 'balanced';
+    
+    // Collect all candidate models for this task type
+    const candidates: Array<{ model: RouterModelInfo; providerId: string }> = [];
+    for (const [providerId, provider] of Object.entries(AI_SUBSCRIPTION_PROVIDERS)) {
+      const model = provider.models.find(m => m.taskTypes.includes(taskType));
+      if (model) {
+        candidates.push({ model, providerId });
+      }
+    }
+
+    // Score and rank candidates
+    const ranked = candidates.map(({ model, providerId }) => {
+      const health = healthMap.get(providerId) || {
+        providerId,
+        available: false,
+        latencyMs: 999999,
+        lastCheck: 0,
+      };
+      const score = selectBestModel([{ model, providerId }], contentLength, preference, healthMap);
+      return { model, providerId, score: score?.score || -1000, health };
+    }).sort((a, b) => b.score - a.score);
+
+    if (ranked.length > 0) {
+      const best = ranked[0];
+      console.log(`[Cost Optimizer] Scored models:`, ranked.map(r => 
+        `${r.providerId}/${r.model.id}: score=${r.score.toFixed(2)}, health=${r.health.available ? 'OK' : 'DOWN'}`
+      ).join(', '));
+      
+      if (best.health.available) {
+        selectedModelId = best.model.id;
+        selectedProviderId = best.providerId;
+      } else {
+        // All providers unavailable, fall back to local if available
+        console.warn(`[Cost Optimizer] All cloud providers unavailable, checking local fallback`);
+        const modelInfo = findModelForTask(taskType, 'local', conditions);
+        if (modelInfo) {
+          selectedModelId = modelInfo.modelId;
+          selectedProviderId = 'local';
+        } else {
+          throw new Error(`No available providers and no local fallback for: ${taskType}`);
+        }
+      }
+    } else {
       throw new Error(`No model found for task type: ${taskType}`);
     }
-    selectedModelId = modelInfo.modelId;
-    selectedProviderId = modelInfo.providerId;
   }
 
   // Log the routing decision
