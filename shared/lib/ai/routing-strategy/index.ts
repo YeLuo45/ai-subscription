@@ -10,3 +10,6 @@ export * from './types';
 export * from './strategy-engine';
 export * from './ab-tester';
 export * from './auto-tuner';
+
+// Strategy market
+export { PRESET_STRATEGIES } from '../strategy-market/presets';
