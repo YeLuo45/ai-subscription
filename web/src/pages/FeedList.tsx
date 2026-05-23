@@ -104,8 +104,11 @@ const LazyLoadingFallback: React.FC = () => (
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
-
-type MenuKey = 'feeds' | 'articles' | 'models' | 'settings' | 'history' | 'summaries' | 'readlater' | 'recommendations' | 'search' | 'stats' | 'category' | 'recommend' | 'analytics' | 'ai-assistant' | 'community' | 'explorer';
+import RealtimeStatus from '../components/RealtimeStatus';
+import OfflineBanner from '../components/OfflineBanner';
+import SyncStatusIndicator from '../components/sync/SyncStatusIndicator';
+import { messageBus, webChannelAdapter } from '../services/event-bus';
+import type { BusEvent } from '../services/event-bus/types';
 
 export default function App() {
   const { t, locale, setLocale } = useContext(I18nContext);
@@ -135,9 +138,31 @@ export default function App() {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const { requestConfirmation, SensitiveModal } = useSensitiveConfirm();
 
+  // Sync status state
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'pending' | 'offline' | 'conflict'>('synced');
+
   // Keyboard navigation state
   const [focusedGroupIndex, setFocusedGroupIndex] = useState(-1);
   const [focusedSubIndex, setFocusedSubIndex] = useState(-1);
+
+  // Initialize MessageBus and subscribe to events
+  useEffect(() => {
+    // Initialize the web channel adapter
+    messageBus.registerAdapter('web', webChannelAdapter);
+
+    // Subscribe to remote events from other tabs
+    const unsubscribe = messageBus.subscribe('*', (event: BusEvent) => {
+      console.log('[FeedList] Received remote event:', event.type);
+      setSyncStatus('synced');
+    });
+
+    // Set initial status
+    setSyncStatus('synced');
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Global search hook for quick navigation
   const globalSearch = useGlobalSearch({
@@ -1243,6 +1268,7 @@ export default function App() {
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ background: '#001529', padding: '0 24px', display: 'flex', alignItems: 'center' }}>
         <Title level={4} style={{ color: 'white', margin: 0 }}>🤖 AI订阅聚合</Title>
+        <span style={{ marginLeft: 12 }}><SyncStatusIndicator status={syncStatus} /></span>
         <span style={{ marginLeft: 12 }}><RealtimeStatus /></span>
         <OfflineBanner />
       </Header>
