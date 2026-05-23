@@ -313,6 +313,14 @@ export default function App() {
       setAddModalOpen(false);
       addForm.resetFields();
       message.success(`${t('feed.addSuccess')}: ${sub.name}`);
+
+      // Publish subscription_updated event for cross-tab sync
+      messageBus.publish({
+        type: 'subscription_updated',
+        payload: { action: 'add', subscriptionId: sub.id, subscription: sub },
+        timestamp: Date.now(),
+        source: 'web',
+      });
     } catch (err) {
       message.error(t('feed.addFailed'));
     }
@@ -343,6 +351,14 @@ export default function App() {
       await deleteSubscription(id);
       setSubscriptions((prev) => prev.filter((s) => s.id !== id));
       message.success(t('feed.deleteSuccess'));
+
+      // Publish subscription_updated event for cross-tab sync
+      messageBus.publish({
+        type: 'subscription_updated',
+        payload: { action: 'delete', subscriptionId: id },
+        timestamp: Date.now(),
+        source: 'web',
+      });
     });
   }
 
@@ -406,6 +422,14 @@ export default function App() {
     setArticles(prev => prev.map(a => a.id === updated.id ? updated : a));
     setReadLaterCount(prev => updated.isReadLater ? prev + 1 : prev - 1);
     message.success(updated.isReadLater ? '已加入稍后读' : '已从稍后读移除');
+
+    // Publish article_bookmarked event for cross-tab sync
+    messageBus.publish({
+      type: 'article_bookmarked',
+      payload: { articleId: updated.id, isReadLater: updated.isReadLater },
+      timestamp: Date.now(),
+      source: 'web',
+    });
   }
 
   function openNoteDrawer(articleId: string, articleTitle: string) {
@@ -918,6 +942,15 @@ export default function App() {
         locale={{ emptyText: <Empty description="暂无文章，请先刷新订阅源" /> }}
         renderItem={(article) => (
           <List.Item
+            onClick={() => {
+              // Publish article_read event for cross-tab sync
+              messageBus.publish({
+                type: 'article_read',
+                payload: { articleId: article.id, title: article.title, url: article.link },
+                timestamp: Date.now(),
+                source: 'web',
+              });
+            }}
             actions={[
               <Button key="summarize" icon={<RobotOutlined />} size="small" loading={summarizing} onClick={() => handleSummarizeArticle(article)}>AI摘要</Button>,
               <Button key="note" icon={<EditOutlined />} size="small" onClick={() => openNoteDrawer(article.id, article.title)} />,
