@@ -116,7 +116,12 @@ export async function flushOfflineQueue(): Promise<number> {
 async function executeOfflineAction(action: OfflineAction): Promise<void> {
   // Dispatch custom event for app to handle
   const event = new CustomEvent('offline-action-flush', { detail: action });
-  window.dispatchEvent(event);
+  
+  try {
+    window.dispatchEvent(event);
+  } catch (e) {
+    // Ignore dispatch errors - listeners may throw
+  }
   
   // Allow some time for listeners to handle the action
   await new Promise(resolve => setTimeout(resolve, 100));

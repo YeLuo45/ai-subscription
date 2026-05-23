@@ -7,17 +7,17 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
 // Mock hooks
-vi.mock('../hooks/useOfflineStatus', () => ({
+vi.mock('../../hooks/useOfflineStatus', () => ({
   useOfflineStatus: vi.fn(),
 }));
 
-vi.mock('../hooks/usePWAUpdate', () => ({
+vi.mock('../../hooks/usePWAUpdate', () => ({
   usePWAUpdate: vi.fn(),
 }));
 
-import { OfflineIndicator } from '../components/OfflineIndicator';
-import { useOfflineStatus } from '../hooks/useOfflineStatus';
-import { usePWAUpdate } from '../hooks/usePWAUpdate';
+import { OfflineIndicator } from '../../components/OfflineIndicator';
+import { useOfflineStatus } from '../../hooks/useOfflineStatus';
+import { usePWAUpdate } from '../../hooks/usePWAUpdate';
 
 describe('OfflineIndicator', () => {
   beforeEach(() => {

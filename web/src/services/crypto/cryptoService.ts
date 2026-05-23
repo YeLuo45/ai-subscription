@@ -91,6 +91,7 @@ export function isEncryptionInitialized(): boolean {
  */
 export function clearEncryption(): void {
   derivedKey = null;
+  currentSalt = null;
 }
 
 /**

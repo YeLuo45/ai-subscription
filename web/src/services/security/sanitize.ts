@@ -267,9 +267,9 @@ export function validateStoredData<T>(data: unknown, expectedType: string): data
     return false;
   }
   
-  // Check for prototype pollution attempts
+  // Check for prototype pollution attempts (direct properties only)
   const obj = data as Record<string, unknown>;
-  if ('__proto__' in obj || 'constructor' in obj) {
+  if (obj.__proto__ !== Object.prototype || 'constructor' in obj && obj.constructor !== Object) {
     console.warn('[Security] Potential prototype pollution detected');
     return false;
   }

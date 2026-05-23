@@ -146,8 +146,11 @@ describe('Offline Service', () => {
       // Add an action and make it fail by removing listener before flush
       queueOfflineAction('sync', { feedId: '1' });
       
-      // Mock executeOfflineAction to fail
-      const eventListener = () => { throw new Error('Simulated failure'); };
+      // Mock executeOfflineAction to fail by preventing default on event
+      const eventListener = (e: Event) => { 
+        e.preventDefault(); 
+        throw new Error('Simulated failure'); 
+      };
       window.addEventListener('offline-action-flush', eventListener);
       
       const flushed = await flushOfflineQueue();

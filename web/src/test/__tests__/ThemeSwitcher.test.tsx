@@ -33,7 +33,7 @@ vi.mock('antd', () => ({
   },
 }));
 
-import { ThemeSwitcher } from '../components/ThemeSwitcher';
+import { ThemeSwitcher } from '../../components/ThemeSwitcher';
 
 describe('ThemeSwitcher', () => {
   beforeEach(() => {

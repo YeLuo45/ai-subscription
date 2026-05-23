@@ -3,22 +3,68 @@
  * Configures jsdom environment and global test utilities
  */
 
-import { cleanup } from '@testing-library/react';
+import { cleanup, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { act as reactAct } from 'react';
+
+// Polyfill React.act for React 19 compatibility with @testing-library/react
+(global as any).React = {
+  act: reactAct,
+  ...((global as any).React || {}),
+};
 
 // Mock Web Crypto API for tests
+let randomCallCount = 0;
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+// Generate varied random data based on call count
+function generateRandomValues<T extends Uint8Array>(array: T): T {
+  randomCallCount++;
+  for (let i = 0; i < array.length; i++) {
+    // Use call count to create variation
+    array[i] = ((i * 7 + randomCallCount * 13) % 256);
+  }
+  return array;
+}
+
+let currentSalt: Uint8Array | null = null;
+
 const mockCrypto = {
-  getRandomValues: <T extends Uint8Array>(array: T): T => {
-    for (let i = 0; i < array.length; i++) {
-      array[i] = Math.floor(Math.random() * 256) as any;
-    }
-    return array;
-  },
+  getRandomValues: generateRandomValues,
   subtle: {
-    importKey: async () => ({}),
-    deriveKey: async () => ({}),
-    encrypt: async () => new ArrayBuffer(0),
-    decrypt: async () => new ArrayBuffer(0),
+    importKey: async (
+      _format: string,
+      keyData: ArrayBuffer,
+      _algorithm: any,
+      _extractable: boolean,
+      _usages: string[]
+    ) => ({
+      type: 'secret',
+      algorithm: { name: 'AES-GCM' },
+      extractable: true,
+      usages: [],
+      exportedKeyData: keyData
+    }),
+    deriveKey: async () => ({ type: 'secret', algorithm: { name: 'AES-GCM' } }),
+    encrypt: async (algorithm: any, key: any, data: ArrayBuffer) => {
+      // Real AES-GCM would produce: IV (12 bytes) + ciphertext + auth tag (16 bytes)
+      // Mock: prepend "MOCK" header and return data as-is for decrypt to extract
+      const encoded = textEncoder.encode(textDecoder.decode(data));
+      const result = new Uint8Array(encoded.length + 4);
+      result[0] = 0x4D; result[1] = 0x4F; result[2] = 0x43; result[3] = 0x4B; // "MOCK"
+      result.set(encoded, 4);
+      return result.buffer;
+    },
+    decrypt: async (algorithm: any, key: any, data: ArrayBuffer) => {
+      const arr = new Uint8Array(data);
+      // Check for mock header
+      if (arr[0] === 0x4D && arr[1] === 0x4F && arr[2] === 0x43 && arr[3] === 0x4B) {
+        return arr.slice(4).buffer;
+      }
+      // Real AES-GCM decryption fallback
+      return data;
+    },
   },
 };
 
@@ -67,7 +113,7 @@ afterEach(() => {
 });
 
 // Mock fetch for API calls
-global.fetch = jest.fn(() =>
+global.fetch = vi.fn(() =>
   Promise.resolve({
     ok: true,
     json: () => Promise.resolve({}),

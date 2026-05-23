@@ -127,7 +127,7 @@ describe('WorkflowEngine', () => {
   });
 
   describe('getInstances', () => {
-    it('should return workflow instances', () => {
+    it('should return workflow instances', async () => {
       const { WorkflowEngine } = await import('../../services/workflow/engine');
       const engine = WorkflowEngine.getInstance();
       
