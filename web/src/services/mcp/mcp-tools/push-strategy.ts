@@ -3,8 +3,6 @@
  * Exposes push strategy decision via MCP
  */
 
-import { routeAndCall } from '../../../../shared/lib/ai/llm-router';
-
 export interface PushStrategyInput {
   articleTitle: string;
   summary?: string;
@@ -22,33 +20,25 @@ export async function pushStrategyTool(input: PushStrategyInput): Promise<PushSt
     throw new Error('articleTitle is required');
   }
 
-  const messages = [
-    {
-      role: 'user' as const,
-      content: `Analyze and decide push strategy for: ${input.articleTitle}${input.summary ? `\n\nSummary: ${input.summary}` : ''}${input.tags ? `\n\nTags: ${input.tags.join(', ')}` : ''}`,
-    },
-  ];
+  // Simple heuristic-based strategy decision
+  const hasTags = input.tags && input.tags.length > 0;
+  const hasSummary = input.summary && input.summary.length > 50;
+  const titleLower = input.articleTitle.toLowerCase();
+  const isUrgent = /\b(breaking|urgent|alert|emergency|critical|now|immediate)\b/i.test(titleLower);
+  const isRecurring = /\b(daily|weekly|monthly|regular|recurring)\b/i.test(titleLower);
 
-  try {
-    const result = await routeAndCall({
-      taskType: 'push-strategy',
-      messages,
-      modelHint: 'gpt-4o',
-    });
-
-    const strategy = (result as any).action || 'review';
-    return {
-      action: ['push_now', 'aggregate', 'archive', 'review'].includes(strategy) ? strategy as any : 'review',
-      confidence: (result as any).confidence || 0.6,
-      reason: (result as any).reason || 'AI-generated decision',
-    };
-  } catch (error) {
-    // Fallback to simple heuristic when AI fails
-    const hasTags = input.tags && input.tags.length > 0;
-    return {
-      action: hasTags ? 'push_now' : 'review',
-      confidence: 0.5,
-      reason: 'Fallback: ' + (error instanceof Error ? error.message : 'AI unavailable'),
-    };
+  if (isUrgent) {
+    return { action: 'push_now', confidence: 0.9, reason: 'Urgent keyword detected' };
   }
+  if (isRecurring) {
+    return { action: 'aggregate', confidence: 0.8, reason: 'Recurring content aggregated' };
+  }
+  if (hasTags && hasSummary) {
+    return { action: 'push_now', confidence: 0.7, reason: 'Content with tags and summary' };
+  }
+  if (!hasTags && !hasSummary) {
+    return { action: 'archive', confidence: 0.6, reason: 'No tags or summary, auto-archived' };
+  }
+
+  return { action: 'review', confidence: 0.5, reason: 'Needs manual review' };
 }
