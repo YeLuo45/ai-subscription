@@ -47,6 +47,7 @@ import {
   TeamOutlined,
   ExperimentOutlined,
   AppstoreOutlined,
+  CloudOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
@@ -95,6 +96,7 @@ import Explorer from './Explorer';
 
 // Lazy load non-critical components for performance
 const MCPServerPanel = lazy(() => import('../components/MCPServerPanel'));
+const MCPClientPanel = lazy(() => import('../components/MCPClientPanel'));
 const AnalyticsDashboard = lazy(() => import('../components/AnalyticsDashboard'));
 
 // Loading fallback for lazy components
@@ -288,6 +290,7 @@ export default function App() {
     { key: 'category', icon: <FolderOutlined />, label: t('sidebar.category') },
     { key: 'recommend', icon: <StarOutlined />, label: t('sidebar.recommend') },
     { key: 'mcp', icon: <ApiOutlined />, label: 'MCP 服务器' },
+    { key: 'mcp-client', icon: <CloudOutlined />, label: 'MCP Client' },
     { key: 'analytics', icon: <BarChartOutlined />, label: t('sidebar.analytics') },
     { key: 'ai-assistant', icon: <MessageOutlined />, label: 'AI 助手' },
     { key: 'community', icon: <TeamOutlined />, label: t('sidebar.community', '社区') },
@@ -1338,6 +1341,7 @@ export default function App() {
           {activeMenu === 'category' && <FeedCategoryPanel />}
           {activeMenu === 'recommend' && <FeedRecommendPanel />}
           {activeMenu === 'mcp' && <Suspense fallback={<LazyLoadingFallback />}><MCPServerPanel /></Suspense>}
+          {activeMenu === 'mcp-client' && <Suspense fallback={<LazyLoadingFallback />}><MCPClientPanel /></Suspense>}
           {activeMenu === 'analytics' && <Suspense fallback={<LazyLoadingFallback />}><div style={{ padding: 16 }}><AnalyticsDashboard isOpen={true} onClose={() => setActiveMenu('feeds')} /></div></Suspense>}
           {activeMenu === 'ai-assistant' && <AIAssistantPanel open={true} onClose={() => setActiveMenu('feeds')} />}
           {activeMenu === 'community' && <CommunityPage />}
