@@ -19,7 +19,7 @@ import {
 } from './cost-optimizer';
 
 // Routing history imports
-import type { RoutingDecision, RoutingExplanation } from './routing-history';
+import type { RoutingDecision, RoutingExplanation } from './routing-history/index';
 
 // Re-export TaskType for convenience
 export { type TaskType } from './providers-ai-subscription';

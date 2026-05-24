@@ -1,7 +1,6 @@
 {
   "name": "@ai-subscription/shared",
   "version": "1.0.0",
-  "type": "module",
   "main": "lib/ai/llm.ts",
   "types": "lib/ai/types/provider.ts",
   "dependencies": {

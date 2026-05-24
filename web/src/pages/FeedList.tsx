@@ -95,6 +95,7 @@ import { useGlobalSearch, useShortcutHints } from '../hooks/useGlobalSearch';
 import CommunityPage from './Community';
 import Explorer from './Explorer';
 import DreamPanel from '../components/DreamPanel';
+import MemoryPanel from '../components/MemoryPanel';
 
 // Lazy load non-critical components for performance
 const MCPServerPanel = lazy(() => import('../components/MCPServerPanel'));
@@ -299,6 +300,7 @@ export default function App() {
     { key: 'explorer', icon: <ExperimentOutlined />, label: '高级探索' },
     { key: 'plugins', icon: <AppstoreOutlined />, label: '插件管理' },
     { key: 'dream-memory', icon: <DreamOutlined />, label: '阅读记忆' },
+    { key: 'memory', icon: <HistoryOutlined />, label: '记忆' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -1351,6 +1353,7 @@ export default function App() {
           {activeMenu === 'explorer' && <Explorer />}
           {activeMenu === 'plugins' && <PluginManagerPanel />}
           {activeMenu === 'dream-memory' && <DreamPanel />}
+          {activeMenu === 'memory' && <MemoryPanel />}
         </Content>
       </Layout>
 
