@@ -106,7 +106,7 @@ export function rankModels(
   preference: 'speed' | 'quality' | 'balanced',
   healthMap: Map<string, ProviderHealth>,
   weights?: ScoringWeights
-): Array<{ model: RouterModelInfo; providerId: string; score: number; health: ProviderHealth }> {
+): Array<{ model: RouterModelInfo; providerId: string; score: number }> {
   const ranked = models.map(({ model, providerId }) => {
     const health = healthMap.get(providerId) || {
       providerId,
@@ -115,15 +115,7 @@ export function rankModels(
       lastCheck: 0,
     };
     const score = scoreModel(model, contentLength, preference, health, weights);
-    return { model, providerId, score, health };
-  });
-
-  // Enhanced logging for bidding visualization
-  console.log(`[Cost Optimizer] Scoring ${ranked.length} candidates:`);
-  ranked.forEach((r, idx) => {
-    const healthStatus = r.health.available ? 'OK' : 'DOWN';
-    const bestMarker = idx === 0 ? ' BEST' : '';
-    console.log(`  - ${r.providerId}/${r.model.id}: score=${r.score.toFixed(2)}, health=${healthStatus}(${r.health.latencyMs}ms), costRank=${r.model.costRank}${bestMarker}`);
+    return { model, providerId, score };
   });
 
   return ranked.sort((a, b) => b.score - a.score);

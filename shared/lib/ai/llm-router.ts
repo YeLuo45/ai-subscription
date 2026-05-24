@@ -13,13 +13,9 @@ import {
   estimateCost,
   getHealthChecker,
   getBudgetController,
-  rankModels,
   selectBestModel,
   type ProviderHealth,
 } from './cost-optimizer';
-
-// Routing history imports
-import type { RoutingDecision, RoutingExplanation } from './routing-history/index';
 
 // Re-export TaskType for convenience
 export { type TaskType } from './providers-ai-subscription';
@@ -188,32 +184,24 @@ export async function routeAndCall(
       }
     }
 
-    // Score and rank candidates using rankModels (which logs detailed scoring)
-    const ranked = rankModels(candidates, contentLength, preference, healthMap);
-
-    // Build alternatives with reasons for routing history
-    const alternatives: Array<{ model: string; provider: string; score: number; reason: string }> = [];
-    for (let i = 1; i < ranked.length; i++) {
-      const r = ranked[i];
-      let reason = '';
-      if (!r.health.available) {
-        reason = 'health check failed';
-      } else if (r.model.costRank > ranked[0].model.costRank) {
-        reason = 'costRank too high';
-      } else {
-        reason = 'preference mismatch';
-      }
-      alternatives.push({
-        model: r.model.id,
-        provider: r.providerId,
-        score: r.score,
-        reason,
-      });
-    }
+    // Score and rank candidates
+    const ranked = candidates.map(({ model, providerId }) => {
+      const health = healthMap.get(providerId) || {
+        providerId,
+        available: false,
+        latencyMs: 999999,
+        lastCheck: 0,
+      };
+      const score = selectBestModel([{ model, providerId }], contentLength, preference, healthMap);
+      return { model, providerId, score: score?.score || -1000, health };
+    }).sort((a, b) => b.score - a.score);
 
     if (ranked.length > 0) {
       const best = ranked[0];
-
+      console.log(`[Cost Optimizer] Scored models:`, ranked.map(r => 
+        `${r.providerId}/${r.model.id}: score=${r.score.toFixed(2)}, health=${r.health.available ? 'OK' : 'DOWN'}`
+      ).join(', '));
+      
       if (best.health.available) {
         selectedModelId = best.model.id;
         selectedProviderId = best.providerId;
@@ -231,23 +219,10 @@ export async function routeAndCall(
     } else {
       throw new Error(`No model found for task type: ${taskType}`);
     }
+  }
 
-    // Log the routing decision
-    console.log(`[LLM Router] ${taskType} → ${selectedProviderId}/${selectedModelId}`);
-
-    // Save routing decision to history (async, non-blocking)
-    const routingDecision: RoutingDecision = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      timestamp: Date.now(),
-      taskType,
-      contentLength,
-      selectedModel: selectedModelId,
-      selectedProvider: selectedProviderId,
-      selectedScore: ranked[0]?.score || 0,
-      alternatives,
-      estimatedCostUSD: costEst.costUSD,
-    };
-    saveRoutingDecisionAsync(routingDecision);
+  // Log the routing decision
+  console.log(`[LLM Router] ${taskType} → ${selectedProviderId}/${selectedModelId}`);
 
   // Check quota before making the call
   const { checkQuota } = await import('./billing/quota-tracker');
@@ -341,67 +316,6 @@ function triggerCostAlertCheck(): void {
     });
   }).catch(() => {
     // Cost alert module not available
-  });
-}
-
-// ============================================================
-// Routing Explanation (last decision)
-// ============================================================
-
-let lastRoutingDecision: RoutingDecision | null = null;
-
-/**
- * Get the explanation for the most recent routing decision
- */
-export function getRoutingExplanation(): RoutingExplanation | null {
-  if (!lastRoutingDecision) return null;
-
-  const decision = lastRoutingDecision;
-  const factors: RoutingExplanation['factors'] = [];
-
-  // Analyze selected model factors
-  factors.push({
-    factor: 'Cost Rank',
-    impact: decision.selectedScore > 5 ? 'positive' : 'neutral',
-    detail: `Selected model has costRank ${decision.alternatives.length > 0 ? 'was lowest among candidates' : 'unknown'}`,
-  });
-
-  // Health factor
-  const wasAvailable = decision.selectedScore > -1000;
-  factors.push({
-    factor: 'Health Status',
-    impact: wasAvailable ? 'positive' : 'negative',
-    detail: wasAvailable ? 'Provider was available' : 'Provider was down',
-  });
-
-  // Preference factor
-  factors.push({
-    factor: 'Preference Match',
-    impact: 'neutral',
-    detail: `Task type: ${decision.taskType}`,
-  });
-
-  return {
-    decision,
-    summary: `Selected ${decision.selectedProvider}/${decision.selectedModel} for ${decision.taskType} at ~$${decision.estimatedCostUSD.toFixed(6)} USD`,
-    factors,
-  };
-}
-
-/**
- * Save routing decision asynchronously (non-blocking)
- */
-function saveRoutingDecisionAsync(decision: RoutingDecision): void {
-  if (typeof window === 'undefined') return; // Only run in browser
-  
-  lastRoutingDecision = decision;
-  
-  import('./routing-history').then(({ saveRoutingDecision }) => {
-    saveRoutingDecision(decision).catch(() => {
-      // Silently fail
-    });
-  }).catch(() => {
-    // Routing history module not available
   });
 }
 

@@ -1,7 +1,10 @@
 /**
  * Workflow Components
- * Visual workflow editor components
  */
 
-export { default as WorkflowCanvas } from './WorkflowCanvas';
-export { default as WorkflowPanel } from './WorkflowPanel';
+export { WorkflowCanvas } from './WorkflowCanvas';
+export { WorkflowListPanel } from './WorkflowListPanel';
+export { WorkflowPanel } from './WorkflowPanel';
+export { VersionHistoryPanel } from './VersionHistoryPanel';
+export { VersionCompare } from './VersionCompare';
+export { SaveIndicator } from './SaveIndicator';
