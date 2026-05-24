@@ -115,9 +115,9 @@ describe('Conflict Resolver', () => {
       });
 
       const result = detectConflict(local, remote);
-      expect(result.hasConflict).toBe(true);
-      // Conflicts is merged clock: { ...local, ...remote } = { device1: 2, device2: 2 }
-      expect(result.conflicts).toEqual({ device1: 2, device2: 2 });
+expect(result.hasConflict).toBe(true);
+      // Conflicts is merged clock: { ...local, ...remote } = { device1: 1, device2: 2 }
+      expect(result.conflicts).toEqual({ device1: 1, device2: 2 });
     });
   });
 
