@@ -52,6 +52,10 @@ export class SearchService {
    * Search with optional filters
    */
   async search(query: string, filters?: FilterOptions): Promise<SearchResult[]> {
+    if (!query || !query.trim()) {
+      return [];
+    }
+
     const searchIndex = getSearchIndex();
     
     // Perform semantic search
