@@ -48,6 +48,7 @@ import {
   ExperimentOutlined,
   AppstoreOutlined,
   CloudOutlined,
+  DreamOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
@@ -93,6 +94,7 @@ import { useKeyboardShortcuts, SHORTCUT_HINTS } from '../hooks/useKeyboardShortc
 import { useGlobalSearch, useShortcutHints } from '../hooks/useGlobalSearch';
 import CommunityPage from './Community';
 import Explorer from './Explorer';
+import DreamPanel from '../components/DreamPanel';
 
 // Lazy load non-critical components for performance
 const MCPServerPanel = lazy(() => import('../components/MCPServerPanel'));
@@ -296,6 +298,7 @@ export default function App() {
     { key: 'community', icon: <TeamOutlined />, label: t('sidebar.community', '社区') },
     { key: 'explorer', icon: <ExperimentOutlined />, label: '高级探索' },
     { key: 'plugins', icon: <AppstoreOutlined />, label: '插件管理' },
+    { key: 'dream-memory', icon: <DreamOutlined />, label: '阅读记忆' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -1347,6 +1350,7 @@ export default function App() {
           {activeMenu === 'community' && <CommunityPage />}
           {activeMenu === 'explorer' && <Explorer />}
           {activeMenu === 'plugins' && <PluginManagerPanel />}
+          {activeMenu === 'dream-memory' && <DreamPanel />}
         </Content>
       </Layout>
 
