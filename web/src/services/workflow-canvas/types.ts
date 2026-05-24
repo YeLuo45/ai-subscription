@@ -4,6 +4,22 @@
  */
 
 // ============================================================
+// SVG Node Types (Canvas Format)
+// ============================================================
+
+export type SVGNodeType = 'task' | 'gateway' | 'start' | 'end';
+
+export interface SVGNode {
+  id: string;
+  type: SVGNodeType;
+  x: number;
+  y: number;
+  label?: string;
+  inputs?: string[];
+  outputs?: string[];
+}
+
+// ============================================================
 // Node Types
 // ============================================================
 
