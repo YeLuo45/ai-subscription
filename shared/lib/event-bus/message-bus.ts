@@ -10,6 +10,8 @@ import type {
   SubscriptionCallback,
   SourcePlatform 
 } from './types';
+import { HookEvent } from './plugins/types';
+import { getPluginRegistry } from './plugins/registry';
 
 type EventHandler = {
   callback: SubscriptionCallback;
@@ -91,11 +93,21 @@ export class MessageBus {
       source: event.source || this.source,
     };
 
+    // Emit plugin hooks before publishing
+    await this.emitHook(HookEvent.SYNC_BEFORE, {
+      syncContext: { operation: 'push' },
+    });
+
     this.notifyHandlers(enrichedEvent);
 
     if (this.adapter) {
       try {
         await this.adapter.publish(enrichedEvent);
+        
+        // Emit plugin hooks after successful publish
+        await this.emitHook(HookEvent.SYNC_AFTER, {
+          syncContext: { operation: 'push' },
+        });
       } catch (error) {
         console.error('[MessageBus] Failed to publish to adapter:', error);
         await this.persistFailedEvent(enrichedEvent);
@@ -217,6 +229,19 @@ export class MessageBus {
       return this.adapter.getState();
     }
     return {};
+  }
+
+  /**
+   * Emit a plugin hook event
+   */
+  private async emitHook(event: HookEvent, context?: Partial<import('./plugins/types').HookContext>): Promise<void> {
+    try {
+      const registry = getPluginRegistry();
+      await registry.emit(event, context);
+    } catch (error) {
+      // Silently ignore plugin hook errors to not disrupt main flow
+      console.debug('[MessageBus] Hook emission failed:', error);
+    }
   }
 
   destroy(): void {

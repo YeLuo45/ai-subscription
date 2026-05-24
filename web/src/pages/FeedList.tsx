@@ -46,6 +46,7 @@ import {
   UpOutlined,
   TeamOutlined,
   ExperimentOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Subscription, SubscriptionGroup, Article, AIModel, AppSettings, ThemeMode } from '../types';
@@ -84,6 +85,7 @@ import Stats from './Stats';
 import { FeedCategoryPanel } from '../services/feed-category/FeedCategoryPanel';
 import { FeedRecommendPanel } from '../services/feed-recommend/FeedRecommendPanel';
 import AIAssistantPanel from '../components/AIAssistantPanel';
+import PluginManagerPanel from '../components/plugin-manager/PluginManagerPanel';
 import { SensitiveConfirmModal, useSensitiveConfirm } from '../components/SensitiveConfirmModal';
 import { I18nContext } from '../i18n';
 import { useKeyboardShortcuts, SHORTCUT_HINTS } from '../hooks/useKeyboardShortcuts';
@@ -290,6 +292,7 @@ export default function App() {
     { key: 'ai-assistant', icon: <MessageOutlined />, label: 'AI 助手' },
     { key: 'community', icon: <TeamOutlined />, label: t('sidebar.community', '社区') },
     { key: 'explorer', icon: <ExperimentOutlined />, label: '高级探索' },
+    { key: 'plugins', icon: <AppstoreOutlined />, label: '插件管理' },
   ];
 
   async function saveModel(model: Omit<AIModel, 'id' | 'createdAt'>) {
@@ -1339,6 +1342,7 @@ export default function App() {
           {activeMenu === 'ai-assistant' && <AIAssistantPanel open={true} onClose={() => setActiveMenu('feeds')} />}
           {activeMenu === 'community' && <CommunityPage />}
           {activeMenu === 'explorer' && <Explorer />}
+          {activeMenu === 'plugins' && <PluginManagerPanel />}
         </Content>
       </Layout>
 

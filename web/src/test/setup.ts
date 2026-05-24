@@ -3,15 +3,17 @@
  * Configures jsdom environment and global test utilities
  */
 
+// IMPORTANT: Set up React.act polyfill BEFORE any imports
+// This must happen before 'react' or '@testing-library/react' is imported
+import { act as reactAct } from 'react-dom/test-utils';
+
+// Set up globals that @testing-library/react expects
+(global as any).React = (global as any).React || {};
+(global as any).React.act = reactAct;
+
+// Now safe to import testing libraries
 import { cleanup, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { act as reactAct } from 'react';
-
-// Polyfill React.act for React 19 compatibility with @testing-library/react
-(global as any).React = {
-  act: reactAct,
-  ...((global as any).React || {}),
-};
 
 // Mock Web Crypto API for tests
 let randomCallCount = 0;
