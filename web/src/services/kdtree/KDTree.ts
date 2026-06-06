@@ -1,109 +1,147 @@
 /**
- * KDTree — k-dimensional tree for nearest neighbor search
+ * KDTree — k-dimensional tree
  *
- * Inspired by: classic geometric data structure
+ * Inspired by: kd-tree-javascript
  *
- * Build a balanced k-d tree by recursively splitting points on median
- * alternating axes. Supports k-NN query.
- *
- * Note: 2D specialization for simplicity.
+ * Recursive spatial index. Supports k-NN search and range queries.
  */
 
-export type Point2D = readonly [number, number];
+export class KDNode {
+  point: number[];
+  data: unknown;
+  left: KDNode | null = null;
+  right: KDNode | null = null;
 
-export interface KDNode {
-  point: Point2D;
-  left: KDNode | null;
-  right: KDNode | null;
-  axis: 0 | 1;
+  constructor(point: number[], data: unknown = null) {
+    this.point = point;
+    this.data = data;
+  }
 }
 
 export class KDTree {
   private root: KDNode | null = null;
-  private nodeCount: number = 0;
+  private k: number;
 
-  constructor(points: Point2D[] = []) {
-    if (points.length > 0) this.build(points);
+  constructor(k: number = 2) {
+    this.k = k;
   }
 
-  build(points: Point2D[]): void {
-    this.nodeCount = points.length;
-    this.root = this.buildRec(points, 0);
+  /**
+   * Insert a point.
+   */
+  insert(point: number[], data: unknown = null): void {
+    this.root = this.insertNode(this.root, point, data, 0);
   }
 
-  size(): number { return this.nodeCount; }
-
-  private buildRec(pts: Point2D[], depth: number): KDNode | null {
-    if (pts.length === 0) return null;
-    const axis: 0 | 1 = (depth % 2) === 0 ? 0 : 1;
-    pts.sort((a, b) => a[axis] - b[axis]);
-    const mid = Math.floor(pts.length / 2);
-    return {
-      point: pts[mid],
-      left: this.buildRec(pts.slice(0, mid), depth + 1),
-      right: this.buildRec(pts.slice(mid + 1), depth + 1),
-      axis,
-    };
+  private insertNode(node: KDNode | null, point: number[], data: unknown, depth: number): KDNode {
+    if (node === null) return new KDNode(point, data);
+    const axis = depth % this.k;
+    if (point[axis] < node.point[axis]) {
+      node.left = this.insertNode(node.left, point, data, depth + 1);
+    } else {
+      node.right = this.insertNode(node.right, point, data, depth + 1);
+    }
+    return node;
   }
 
-  /** Squared distance between points. */
-  static distance(a: Point2D, b: Point2D): number {
-    const dx = a[0] - b[0];
-    const dy = a[1] - b[1];
-    return dx * dx + dy * dy;
+  /**
+   * Find k nearest neighbors.
+   */
+  nearest(target: number[], k: number = 1): Array<{ point: number[]; data: unknown; distance: number }> {
+    const result: Array<{ point: number[]; data: unknown; distance: number; depth: number }> = [];
+    this.search(this.root, target, 0, k, result);
+    return result
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, k)
+      .map((r) => ({ point: r.point, data: r.data, distance: r.distance }));
   }
 
-  nearest(target: Point2D, k: number = 1): { point: Point2D; distance: number }[] {
-    if (!this.root || k <= 0) return [];
-    const best: { point: Point2D; dist: number }[] = [];
-    this.nearestRec(this.root, target, k, best);
-    return best.sort((a, b) => a.dist - b.dist).map((x) => ({ point: x.point, distance: Math.sqrt(x.dist) }));
-  }
-
-  private nearestRec(node: KDNode | null, target: Point2D, k: number, best: { point: Point2D; dist: number }[]): void {
-    if (!node) return;
-    const dist = KDTree.distance(node.point, target);
-    this.addBest(best, { point: node.point, dist }, k);
-    const diff = target[node.axis] - node.point[node.axis];
+  private search(
+    node: KDNode | null,
+    target: number[],
+    depth: number,
+    k: number,
+    result: Array<{ point: number[]; data: unknown; distance: number; depth: number }>,
+  ): void {
+    if (node === null) return;
+    const dist = this.sqDist(node.point, target);
+    if (result.length < k) {
+      result.push({ point: node.point, data: node.data, distance: Math.sqrt(dist), depth });
+    } else {
+      // Find max
+      let maxIdx = 0;
+      for (let i = 1; i < result.length; i++) {
+        if (result[i].distance > result[maxIdx].distance) maxIdx = i;
+      }
+      if (dist < result[maxIdx].distance ** 2) {
+        result[maxIdx] = { point: node.point, data: node.data, distance: Math.sqrt(dist), depth };
+      }
+    }
+    const axis = depth % this.k;
+    const diff = target[axis] - node.point[axis];
     const first = diff < 0 ? node.left : node.right;
     const second = diff < 0 ? node.right : node.left;
-    this.nearestRec(first, target, k, best);
-    if (best.length < k || diff * diff < this.worstDist(best)) {
-      this.nearestRec(second, target, k, best);
+    this.search(first, target, depth + 1, k, result);
+    if (diff * diff < this.maxDistSq(result)) {
+      this.search(second, target, depth + 1, k, result);
     }
   }
 
-  private worstDist(best: { dist: number }[]): number {
-    let m = -Infinity;
-    for (const b of best) if (b.dist > m) m = b.dist;
-    return m;
-  }
-
-  private addBest(best: { point: Point2D; dist: number }[], candidate: { point: Point2D; dist: number }, k: number): void {
-    if (best.length < k) {
-      best.push(candidate);
-    } else if (candidate.dist < this.worstDist(best)) {
-      let idx = 0;
-      for (let i = 1; i < best.length; i++) if (best[i].dist > best[idx].dist) idx = i;
-      best[idx] = candidate;
+  private maxDistSq(result: Array<{ distance: number }>): number {
+    if (result.length === 0) return Infinity;
+    let max = 0;
+    for (const r of result) {
+      const d = r.distance ** 2;
+      if (d > max) max = d;
     }
+    return max;
   }
 
-  radiusSearch(target: Point2D, radius: number): Point2D[] {
-    if (!this.root) return [];
-    const out: Point2D[] = [];
-    this.radiusRec(this.root, target, radius, out);
-    return out;
+  /**
+   * Range query (axis-aligned).
+   */
+  queryRange(min: number[], max: number[]): Array<{ point: number[]; data: unknown }> {
+    const result: Array<{ point: number[]; data: unknown }> = [];
+    this.queryNode(this.root, min, max, 0, result);
+    return result;
   }
 
-  private radiusRec(node: KDNode | null, target: Point2D, radius: number, out: Point2D[]): void {
-    if (!node) return;
-    const d = Math.sqrt(KDTree.distance(node.point, target));
-    if (d <= radius) out.push(node.point);
-    const diff = target[node.axis] - node.point[node.axis];
-    this.radiusRec(diff < 0 ? node.left : node.right, target, radius, out);
-    if (Math.abs(diff) <= radius) {
-      this.radiusRec(diff < 0 ? node.right : node.left, target, radius, out);
+  private queryNode(
+    node: KDNode | null,
+    min: number[],
+    max: number[],
+    depth: number,
+    result: Array<{ point: number[]; data: unknown }>,
+  ): void {
+    if (node === null) return;
+    let inside = true;
+    for (let i = 0; i < this.k; i++) {
+      if (node.point[i] < min[i] || node.point[i] > max[i]) {
+        inside = false;
+        break;
+      }
     }
+    if (inside) result.push({ point: node.point, data: node.data });
+    const axis = depth % this.k;
+    if (min[axis] <= node.point[axis]) this.queryNode(node.left, min, max, depth + 1, result);
+    if (max[axis] >= node.point[axis]) this.queryNode(node.right, min, max, depth + 1, result);
+  }
+
+  /**
+   * Total count of points.
+   */
+  size(): number {
+    return this.count(this.root);
+  }
+
+  private count(node: KDNode | null): number {
+    if (node === null) return 0;
+    return 1 + this.count(node.left) + this.count(node.right);
+  }
+
+  private sqDist(a: number[], b: number[]): number {
+    let s = 0;
+    for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
+    return s;
   }
 }
