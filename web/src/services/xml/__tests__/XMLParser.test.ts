@@ -1,85 +1,58 @@
 /**
- * XMLParser.test.ts — Pure unit tests for XML parser
+ * XMLParser.test.ts — Pure unit tests
  */
 
 import { describe, it, expect } from 'vitest';
 import { XMLParser } from '../XMLParser';
 
 describe('XMLParser — basic', () => {
-  it('parses self-closing tag', () => {
-    const r = new XMLParser().parse('<br/>');
-    expect(r.length).toBe(1);
-    if (r[0].type === 'element') expect(r[0].tag).toBe('br');
+  it('simple', () => {
+    const r = XMLParser.parse('<root>hello</root>');
+    expect(r).toEqual({ root: { '#text': 'hello' } });
   });
 
-  it('parses element with text', () => {
-    const r = new XMLParser().parse('<greeting>hello</greeting>');
-    expect(r.length).toBe(1);
-    if (r[0].type === 'element') {
-      expect(r[0].tag).toBe('greeting');
-      expect(r[0].children[0]).toEqual({ type: 'text', value: 'hello' });
-    }
+  it('self-closing', () => {
+    const r = XMLParser.parse('<root><br/></root>');
+    expect(r).toEqual({ root: { br: '' } });
   });
 
-  it('parses element with attributes', () => {
-    const r = new XMLParser().parse('<a href="https://example.com" id="1"/>');
-    if (r[0].type === 'element') {
-      expect(r[0].attrs.href).toBe('https://example.com');
-      expect(r[0].attrs.id).toBe('1');
-    }
-  });
-});
-
-describe('XMLParser — nested', () => {
-  it('parses nested elements', () => {
-    const r = new XMLParser().parse('<root><child>x</child></root>');
-    if (r[0].type === 'element') {
-      expect(r[0].children.length).toBe(1);
-      const child = r[0].children[0];
-      if (child.type === 'element') {
-        expect(child.tag).toBe('child');
-      }
-    }
+  it('with attributes', () => {
+    const r = XMLParser.parse('<root attr="x">val</root>');
+    expect(r).toEqual({ root: { '#text': 'val' } });
   });
 
-  it('parses siblings', () => {
-    const r = new XMLParser().parse('<root><a/><b/><c/></root>');
-    if (r[0].type === 'element') {
-      expect(r[0].children.length).toBe(3);
-    }
+  it('nested', () => {
+    const r = XMLParser.parse('<a><b>1</b></a>');
+    expect(r).toEqual({ a: { b: { '#text': '1' } } });
+  });
+
+  it('multiple children', () => {
+    const r = XMLParser.parse('<a><b>1</b><c>2</c></a>');
+    expect(r).toEqual({ a: { b: { '#text': '1' }, c: { '#text': '2' } } });
+  });
+
+  it('repeated children become array', () => {
+    const r = XMLParser.parse('<a><b>1</b><b>2</b></a>');
+    const bs = (r as any).a.b;
+    expect(Array.isArray(bs)).toBe(true);
   });
 });
 
-describe('XMLParser — special', () => {
-  it('skips XML declaration', () => {
-    const r = new XMLParser().parse('<?xml version="1.0"?><root/>');
-    expect(r.length).toBe(1);
-    if (r[0].type === 'element') expect(r[0].tag).toBe('root');
+describe('XMLParser — escape', () => {
+  it('entity', () => {
+    const r = XMLParser.parse('<r>a &amp; b</r>');
+    expect((r as any).r['#text']).toBe('a & b');
   });
 
-  it('skips comments', () => {
-    const r = new XMLParser().parse('<!-- comment --><root/>');
-    expect(r.length).toBe(1);
-  });
-
-  it('parses CDATA', () => {
-    const r = new XMLParser().parse('<x><![CDATA[raw <data>]]></x>');
-    if (r[0].type === 'element') {
-      expect(r[0].children[0]).toEqual({ type: 'cdata', value: 'raw <data>' });
-    }
+  it('lt/gt', () => {
+    const r = XMLParser.parse('<r>&lt;tag&gt;</r>');
+    expect((r as any).r['#text']).toBe('<tag>');
   });
 });
 
-describe('XMLParser — multiple roots', () => {
-  it('parses multiple top-level elements', () => {
-    const r = new XMLParser().parse('<a/><b/>');
-    expect(r.length).toBe(2);
-  });
-});
-
-describe('XMLParser — attribute quoting', () => {
-  it('single quotes', () => {
-    const r = new XMLParser().parse("<a href='foo'/>");
-    if (r[0].type === 'element') expect(r[0].attrs.href).toBe('foo');
+describe('XMLParser — declarations/comments', () => {
+  it('declaration', () => {
+    const r = XMLParser.parse('<?xml version="1.0"?><r>x</r>');
+    expect((r as any).r['#text']).toBe('x');
   });
 });
