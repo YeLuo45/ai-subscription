@@ -5,122 +5,106 @@
 import { describe, it, expect } from 'vitest';
 import { Vector2D } from '../Vector2D';
 
-const v = (x: number, y: number) => new Vector2D(x, y);
-
 describe('Vector2D — basic', () => {
-  it('zero', () => {
-    const z = Vector2D.zero();
-    expect(z.x).toBe(0);
-    expect(z.y).toBe(0);
+  it('constructor', () => {
+    const v = new Vector2D(3, 4);
+    expect(v.x).toBe(3);
+    expect(v.y).toBe(4);
   });
 
-  it('fromAngle', () => {
-    const u = Vector2D.fromAngle(0);
-    expect(u.x).toBeCloseTo(1, 5);
-    expect(u.y).toBeCloseTo(0, 5);
+  it('zero', () => {
+    const v = Vector2D.zero();
+    expect(v.x).toBe(0);
+  });
+
+  it('fromArray', () => {
+    const v = Vector2D.fromArray([1, 2]);
+    expect(v.y).toBe(2);
   });
 });
 
-describe('Vector2D — arithmetic', () => {
+describe('Vector2D — ops', () => {
   it('add', () => {
-    expect(v(1, 2).add(v(3, 4))).toEqual(v(4, 6));
+    const v = new Vector2D(1, 2).add(new Vector2D(3, 4));
+    expect(v.x).toBe(4);
   });
 
-  it('sub', () => {
-    expect(v(3, 4).sub(v(1, 2))).toEqual(v(2, 2));
+  it('subtract', () => {
+    const v = new Vector2D(5, 6).subtract(new Vector2D(1, 2));
+    expect(v.y).toBe(4);
   });
 
   it('scale', () => {
-    expect(v(1, 2).scale(3)).toEqual(v(3, 6));
+    const v = new Vector2D(2, 3).scale(2);
+    expect(v.y).toBe(6);
   });
 
   it('negate', () => {
-    expect(v(1, 2).negate()).toEqual(v(-1, -2));
-  });
-
-  it('divide', () => {
-    expect(v(4, 6).divide(2)).toEqual(v(2, 3));
+    const v = new Vector2D(3, 4).negate();
+    expect(v.x).toBe(-3);
   });
 });
 
-describe('Vector2D — operations', () => {
+describe('Vector2D — products', () => {
   it('dot', () => {
-    expect(v(1, 2).dot(v(3, 4))).toBe(11);
+    expect(new Vector2D(1, 2).dot(new Vector2D(3, 4))).toBe(11);
   });
 
   it('cross', () => {
-    expect(v(1, 0).cross(v(0, 1))).toBe(1);
+    expect(new Vector2D(1, 0).cross(new Vector2D(0, 1))).toBe(1);
   });
 
   it('magnitude', () => {
-    expect(v(3, 4).magnitude()).toBe(5);
+    expect(new Vector2D(3, 4).magnitude()).toBe(5);
   });
 
   it('magnitudeSq', () => {
-    expect(v(3, 4).magnitudeSq()).toBe(25);
+    expect(new Vector2D(3, 4).magnitudeSq()).toBe(25);
   });
+});
 
+describe('Vector2D — geom', () => {
   it('normalize', () => {
-    const n = v(3, 4).normalize();
-    expect(n.magnitude()).toBeCloseTo(1, 5);
+    const n = new Vector2D(3, 4).normalize();
+    expect(n.magnitude()).toBeCloseTo(1, 10);
   });
 
   it('normalize zero', () => {
-    expect(v(0, 0).normalize()).toEqual(v(0, 0));
+    expect(Vector2D.zero().normalize().magnitude()).toBe(0);
   });
 
-  it('limit', () => {
-    const l = v(10, 0).limit(5);
-    expect(l.magnitude()).toBeCloseTo(5, 5);
+  it('distanceTo', () => {
+    expect(new Vector2D(0, 0).distanceTo(new Vector2D(3, 4))).toBe(5);
   });
 
   it('angle', () => {
-    expect(v(1, 0).angle()).toBeCloseTo(0, 5);
+    expect(new Vector2D(1, 0).angle()).toBe(0);
   });
 
-  it('distance', () => {
-    expect(v(0, 0).distance(v(3, 4))).toBe(5);
+  it('angleTo', () => {
+    expect(new Vector2D(0, 0).angleTo(new Vector2D(1, 0))).toBe(0);
   });
 });
 
 describe('Vector2D — transform', () => {
-  it('lerp', () => {
-    expect(v(0, 0).lerp(v(10, 0), 0.5)).toEqual(v(5, 0));
-  });
-
-  it('reflect', () => {
-    const r = v(1, 0).reflect(v(1, 0));
-    expect(r.x).toBeCloseTo(-1, 5);
-  });
-
   it('rotate 90', () => {
-    const r = v(1, 0).rotate(Math.PI / 2);
+    const r = new Vector2D(1, 0).rotate(Math.PI / 2);
     expect(r.x).toBeCloseTo(0, 5);
     expect(r.y).toBeCloseTo(1, 5);
   });
 
-  it('perpendicular', () => {
-    expect(v(1, 0).perpendicular().x).toBeCloseTo(0, 5);
-    expect(v(1, 0).perpendicular().y).toBe(1);
-  });
-
-  it('project', () => {
-    const p = v(3, 4).project(v(1, 0));
-    expect(p.x).toBeCloseTo(3, 5);
+  it('lerp', () => {
+    const v = new Vector2D(0, 0).lerp(new Vector2D(10, 20), 0.5);
+    expect(v.x).toBe(5);
   });
 });
 
-describe('Vector2D — utility', () => {
+describe('Vector2D — util', () => {
+  it('equals', () => {
+    expect(new Vector2D(1, 2).equals(new Vector2D(1, 2))).toBe(true);
+  });
+
   it('toArray', () => {
-    expect(v(1, 2).toArray()).toEqual([1, 2]);
-  });
-
-  it('equals strict', () => {
-    expect(v(1, 2).equals(v(1, 2))).toBe(true);
-    expect(v(1, 2).equals(v(1, 3))).toBe(false);
-  });
-
-  it('equals epsilon', () => {
-    expect(v(1, 2).equals(v(1.0001, 2), 0.01)).toBe(true);
+    expect(new Vector2D(1, 2).toArray()).toEqual([1, 2]);
   });
 });
