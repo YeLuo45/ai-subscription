@@ -4,6 +4,7 @@ import { getSettings } from './services/storage';
 import { I18nProvider } from './i18n';
 import type { ThemeMode } from './types';
 import './styles/theme.css';
+import './styles/centered-layout.css';
 import './App.css';
 
 // Lazy load non-critical components

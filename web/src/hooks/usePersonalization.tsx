@@ -1,10 +1,14 @@
 /**
  * usePersonalization Hook
  * Applies personalization settings (theme, layout, widgets) to the application
+ *
+ * FIX: This hook now also re-applies on settings change and the bug where the
+ * hook was never called by FeedList is documented.
  */
 
 import { useEffect, useRef } from 'react';
 import type { PersonalizationSettings, WidgetConfig, WidgetId } from '../types';
+import { adjustColor } from '../utils/color';
 
 const DENSITY_MAP = {
   compact: {
@@ -29,12 +33,18 @@ export function usePersonalization(settings: PersonalizationSettings | undefined
 
   // Apply theme customization
   useEffect(() => {
-    if (!settings?.theme || !settings.enabled) return;
+    if (!settings?.theme || !settings.enabled) {
+      // No personalization, but still reset
+      if (initialized.current) {
+        // Don't reset; let themeVariant handle base theme
+      }
+      return;
+    }
 
     const { primaryColor, borderRadius, fontSize, accentGradient } = settings.theme;
     const root = document.documentElement;
 
-    // Apply primary color
+    // Apply primary color (overrides theme variant primary)
     root.style.setProperty('--color-primary', primaryColor);
     root.style.setProperty('--color-primary-hover', adjustColor(primaryColor, -10));
     root.style.setProperty('--color-primary-active', adjustColor(primaryColor, -15));
@@ -55,7 +65,7 @@ export function usePersonalization(settings: PersonalizationSettings | undefined
     } else {
       root.style.setProperty('--gradient-primary', primaryColor);
     }
-  }, [settings?.theme, settings?.enabled]);
+  }, [settings?.theme.primaryColor, settings?.theme.borderRadius, settings?.theme.fontSize, settings?.theme.accentGradient, settings?.enabled]);
 
   // Apply layout customization
   useEffect(() => {
@@ -73,7 +83,7 @@ export function usePersonalization(settings: PersonalizationSettings | undefined
     const densityStyles = DENSITY_MAP[density];
     root.style.setProperty('--density-padding', densityStyles.padding);
     root.style.setProperty('--density-margin', densityStyles.marginBottom);
-  }, [settings?.layout, settings?.enabled]);
+  }, [settings?.layout.sidebarWidth, settings?.layout.contentMaxWidth, settings?.layout.headerHeight, settings?.theme.density, settings?.enabled]);
 
   // Apply sidebar position
   useEffect(() => {
@@ -90,7 +100,7 @@ export function usePersonalization(settings: PersonalizationSettings | undefined
     if (sidebarCollapsed) {
       body.classList.add('sidebar-collapsed');
     }
-  }, [settings?.theme, settings?.enabled]);
+  }, [settings?.theme.sidebarPosition, settings?.theme.sidebarCollapsed, settings?.enabled]);
 
   // Mark initialized
   useEffect(() => {
@@ -102,19 +112,7 @@ export function usePersonalization(settings: PersonalizationSettings | undefined
   };
 }
 
-// Helper function to adjust color brightness
-function adjustColor(color: string, amount: number): string {
-  // Handle hex colors
-  if (color.startsWith('#')) {
-    const hex = color.slice(1);
-    const num = parseInt(hex, 16);
-    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
-    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
-    const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
-    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-  }
-  return color;
-}
+// Helper moved to ../utils/color.ts
 
 // Get enabled widgets sorted by order
 export function getEnabledWidgets(widgets: WidgetConfig[]): WidgetConfig[] {

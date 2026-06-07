@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useContext, Suspense, lazy, useRef } from 'react';
+import { ConfigProvider, theme as antdTheme } from 'antd';
 import {
   Layout,
   Menu,
@@ -116,10 +117,21 @@ import OfflineBanner from '../components/OfflineBanner';
 import SyncStatusIndicator from '../components/sync/SyncStatusIndicator';
 import { messageBus, webChannelAdapter } from '../services/event-bus';
 import type { BusEvent } from '../services/event-bus/types';
+import { usePersonalization } from '../hooks/usePersonalization';
+import { useThemeVariant } from '../hooks/useThemeVariant';
+import { THEME_VARIANTS } from '../styles/themeRegistry';
+import { ThemeVariantSwitcher } from '../components/ThemeVariantSwitcher';
 
 export default function App() {
   const { t, locale, setLocale } = useContext(I18nContext);
   const [activeMenu, setActiveMenu] = useState<MenuKey>('feeds');
+
+  // V68: Apply theme variant (6 themes) and personalization (overrides primary color etc.)
+  const { variant: themeVariant, mode: themeMode } = useThemeVariant();
+  usePersonalization(settings?.personalization);
+
+  // Compute antd algorithm from current theme variant
+  const isDarkVariant = ['dark', 'nord', 'catppuccin'].includes(themeVariant);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [groups, setGroups] = useState<SubscriptionGroup[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -1309,15 +1321,32 @@ export default function App() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ background: '#001529', padding: '0 24px', display: 'flex', alignItems: 'center' }}>
-        <Title level={4} style={{ color: 'white', margin: 0 }}>🤖 AI订阅聚合</Title>
-        <span style={{ marginLeft: 12 }}><SyncStatusIndicator status={syncStatus} /></span>
-        <span style={{ marginLeft: 12 }}><RealtimeStatus /></span>
-        <OfflineBanner />
+    <ConfigProvider
+      theme={{
+        algorithm: isDarkVariant ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: settings?.personalization?.theme?.primaryColor || THEME_VARIANTS[themeVariant]?.cssVars['--color-primary'] || '#1890ff',
+        },
+      }}
+    >
+    <Layout className="app-centered-layout" style={{ minHeight: '100vh' }}>
+      <Header className="app-centered-header" style={{ background: 'var(--color-card)', padding: '0 24px', display: 'flex', alignItems: 'center' }}>
+        <div className="app-centered-header-inner">
+          <div className="app-centered-header-brand">
+            <Title level={4} style={{ color: 'var(--color-text)', margin: 0 }}>🤖 AI订阅聚合</Title>
+            <span style={{ marginLeft: 12 }}><SyncStatusIndicator status={syncStatus} /></span>
+            <span style={{ marginLeft: 12 }}><RealtimeStatus /></span>
+          </div>
+          <div className="app-centered-header-nav">
+            <OfflineBanner />
+          </div>
+          <div className="app-centered-header-actions">
+            <ThemeVariantSwitcher />
+          </div>
+        </div>
       </Header>
       <Layout>
-        <Sider width={200} style={{ background: '#fff' }}>
+        <Sider width={240} style={{ background: 'var(--color-card)', borderRight: '1px solid var(--color-border)' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
             <Input.Search
               placeholder="搜索..."
@@ -1457,5 +1486,6 @@ export default function App() {
         </div>
       )}
     </Layout>
+    </ConfigProvider>
   );
 }

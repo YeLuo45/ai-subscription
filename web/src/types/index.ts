@@ -109,6 +109,7 @@ export interface EmailSettings {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeVariant = 'light' | 'dark' | 'sepia' | 'nord' | 'solarized' | 'catppuccin';
 
 // ============ Advanced Personalization ============
 export type LayoutDensity = 'compact' | 'comfortable' | 'spacious';
@@ -186,6 +187,7 @@ export interface AppSettings {
   defaultFetchInterval: number;  // global default in minutes
   schedulerEnabled: boolean;
   themeMode: ThemeMode;
+  themeVariant?: ThemeVariant;
   locale: 'zh' | 'en';
   localModeEnabled?: boolean;  // Enable local model inference (WebLLM)
   personalization?: PersonalizationSettings; // Advanced personalization
