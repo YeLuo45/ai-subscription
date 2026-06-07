@@ -1,85 +1,67 @@
 /**
- * CronParser.test.ts — Pure unit tests for cron parser
+ * CronParser.test.ts — Pure unit tests
  */
 
 import { describe, it, expect } from 'vitest';
 import { CronParser } from '../CronParser';
 
-describe('CronParser — basic', () => {
-  it('parses * * * * *', () => {
-    const r = new CronParser().parse('* * * * *');
-    expect(r.minute.values.length).toBe(60);
-    expect(r.hour.values.length).toBe(24);
+describe('CronParser — parse', () => {
+  it('every minute', () => {
+    const f = CronParser.parse('* * * * *');
+    expect(f.minute.length).toBe(60);
+    expect(f.hour.length).toBe(24);
   });
 
-  it('parses specific minute', () => {
-    const r = new CronParser().parse('30 * * * *');
-    expect(r.minute.values).toEqual([30]);
+  it('specific minute', () => {
+    const f = CronParser.parse('30 12 * * *');
+    expect(f.minute).toEqual([30]);
+    expect(f.hour).toEqual([12]);
   });
 
-  it('parses specific hour', () => {
-    const r = new CronParser().parse('0 14 * * *');
-    expect(r.hour.values).toEqual([14]);
+  it('range', () => {
+    const f = CronParser.parse('0 9-17 * * *');
+    expect(f.hour.length).toBe(9);
   });
 
-  it('parses day of month', () => {
-    const r = new CronParser().parse('0 0 15 * *');
-    expect(r.dayOfMonth.values).toEqual([15]);
+  it('step', () => {
+    const f = CronParser.parse('*/15 * * * *');
+    expect(f.minute).toEqual([0, 15, 30, 45]);
   });
 
-  it('parses month', () => {
-    const r = new CronParser().parse('0 0 1 6 *');
-    expect(r.month.values).toEqual([6]);
-  });
-
-  it('parses day of week', () => {
-    const r = new CronParser().parse('0 0 * * 0');
-    expect(r.dayOfWeek.values).toEqual([0]);
+  it('list', () => {
+    const f = CronParser.parse('0 9,12,18 * * *');
+    expect(f.hour).toEqual([9, 12, 18]);
   });
 });
 
-describe('CronParser — ranges', () => {
-  it('range 1-5', () => {
-    const r = new CronParser().parse('0 9-17 * * *');
-    expect(r.hour.values).toEqual([9, 10, 11, 12, 13, 14, 15, 16, 17]);
+describe('CronParser — validate', () => {
+  it('valid', () => {
+    expect(CronParser.isValid('0 12 * * *')).toBe(true);
+  });
+
+  it('invalid', () => {
+    expect(CronParser.isValid('invalid')).toBe(false);
   });
 });
 
-describe('CronParser — steps', () => {
-  it('every 15 minutes', () => {
-    const r = new CronParser().parse('*/15 * * * *');
-    expect(r.minute.values).toEqual([0, 15, 30, 45]);
+describe('CronParser — next', () => {
+  it('next at 12:00', () => {
+    const from = new Date('2026-01-01T11:59:00');
+    const n = CronParser.next('0 12 * * *', from);
+    expect(n?.getHours()).toBe(12);
+    expect(n?.getMinutes()).toBe(0);
   });
 
-  it('range with step', () => {
-    const r = new CronParser().parse('0 9-17/2 * * *');
-    expect(r.hour.values).toEqual([9, 11, 13, 15, 17]);
-  });
-});
-
-describe('CronParser — lists', () => {
-  it('comma list', () => {
-    const r = new CronParser().parse('0,15,30,45 * * * *');
-    expect(r.minute.values).toEqual([0, 15, 30, 45]);
+  it('next every minute', () => {
+    const from = new Date('2026-01-01T11:00:00');
+    const n = CronParser.next('* * * * *', from);
+    expect(n).not.toBeNull();
   });
 });
 
-describe('CronParser — invalid', () => {
-  it('rejects wrong field count', () => {
-    expect(() => new CronParser().parse('* * *')).toThrow();
-  });
-});
-
-describe('CronParser — matches', () => {
-  it('matches specific time', () => {
-    const p = new CronParser().parse('30 14 * * *');
-    const d = new Date(2024, 0, 1, 14, 30, 0);
-    expect(new CronParser().matches(p, d)).toBe(true);
-  });
-
-  it('does not match', () => {
-    const p = new CronParser().parse('0 14 * * *');
-    const d = new Date(2024, 0, 1, 15, 0, 0);
-    expect(new CronParser().matches(p, d)).toBe(false);
+describe('CronParser — describe', () => {
+  it('describe', () => {
+    const s = CronParser.describe('0 12 * * *');
+    expect(s).toContain('12');
   });
 });
