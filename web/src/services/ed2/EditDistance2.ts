@@ -1,0 +1,157 @@
+/**
+ * EditDistance2 — optimized edit distance algorithms
+ *
+ * Inspired by: fast-levenshtein / damerau-levenshtein
+ *
+ * - Levenshtein (DP)
+ * - Damerau (with transposition)
+ * - Hamming (equal length)
+ * - Jaro-Winkler (similarity)
+ * - OSA (Optimal String Alignment)
+ */
+
+export class EditDistance2 {
+  /**
+   * Levenshtein distance (DP, O(m*n) time, O(min(m,n)) space).
+   */
+  static levenshtein(a: string, b: string): number {
+    if (a === b) return 0;
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    if (a.length > b.length) { [a, b] = [b, a]; }
+    const m = a.length, n = b.length;
+    let prev = new Array<number>(m + 1);
+    let curr = new Array<number>(m + 1);
+    for (let i = 0; i <= m; i++) prev[i] = i;
+    for (let j = 1; j <= n; j++) {
+      curr[0] = j;
+      for (let i = 1; i <= m; i++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        curr[i] = Math.min(
+          prev[i] + 1,
+          curr[i - 1] + 1,
+          prev[i - 1] + cost
+        );
+      }
+      [prev, curr] = [curr, prev];
+    }
+    return prev[m];
+  }
+
+  /**
+   * Damerau-Levenshtein (with transposition).
+   */
+  static damerau(a: string, b: string): number {
+    if (a === b) return 0;
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const m = a.length, n = b.length;
+    const d: number[][] = Array.from({ length: m + 2 }, () => new Array(n + 2).fill(0));
+    const maxDist = m + n;
+    d[0][0] = maxDist;
+    for (let i = 0; i <= m; i++) { d[i + 1][1] = i; d[i + 1][0] = maxDist; }
+    for (let j = 0; j <= n; j++) { d[1][j + 1] = j; d[0][j + 1] = maxDist; }
+    const da: Record<string, number> = {};
+    for (let i = 1; i <= m; i++) {
+      let db = 0;
+      for (let j = 1; j <= n; j++) {
+        const k = da[b[j - 1]] ?? 0;
+        const l = db;
+        const cost = a[i - 1] === b[j - 1] ? (db = j, 0) : 1;
+        if (cost === 0) db = j;
+        d[i + 1][j + 1] = Math.min(
+          d[i][j] + cost,
+          d[i + 1][j] + 1,
+          d[i][j + 1] + 1,
+          d[k][l] + (i - k - 1) + 1 + (j - l - 1)
+        );
+      }
+      da[a[i - 1]] = i;
+    }
+    return d[m + 1][n + 1];
+  }
+
+  /**
+   * Hamming distance (equal-length strings).
+   */
+  static hamming(a: string, b: string): number {
+    if (a.length !== b.length) throw new Error('Strings must be equal length');
+    let d = 0;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) d++;
+    }
+    return d;
+  }
+
+  /**
+   * Jaro similarity.
+   */
+  static jaro(a: string, b: string): number {
+    if (a === b) return 1;
+    if (a.length === 0 || b.length === 0) return 0;
+    const matchDist = Math.max(0, Math.floor(Math.max(a.length, b.length) / 2) - 1);
+    const aMatches = new Array<boolean>(a.length).fill(false);
+    const bMatches = new Array<boolean>(b.length).fill(false);
+    let matches = 0;
+    for (let i = 0; i < a.length; i++) {
+      const start = Math.max(0, i - matchDist);
+      const end = Math.min(i + matchDist + 1, b.length);
+      for (let j = start; j < end; j++) {
+        if (bMatches[j]) continue;
+        if (a[i] !== b[j]) continue;
+        aMatches[i] = true;
+        bMatches[j] = true;
+        matches++;
+        break;
+      }
+    }
+    if (matches === 0) return 0;
+    let transpositions = 0;
+    let k = 0;
+    for (let i = 0; i < a.length; i++) {
+      if (!aMatches[i]) continue;
+      while (!bMatches[k]) k++;
+      if (a[i] !== b[k]) transpositions++;
+      k++;
+    }
+    return (matches / a.length + matches / b.length + (matches - transpositions / 2) / matches) / 3;
+  }
+
+  /**
+   * Jaro-Winkler similarity (with prefix bonus).
+   */
+  static jaroWinkler(a: string, b: string, prefixScale: number = 0.1): number {
+    const j = EditDistance2.jaro(a, b);
+    let prefix = 0;
+    for (let i = 0; i < Math.min(4, a.length, b.length); i++) {
+      if (a[i] === b[i]) prefix++;
+      else break;
+    }
+    return j + prefix * prefixScale * (1 - j);
+  }
+
+  /**
+   * Optimal String Alignment.
+   */
+  static osa(a: string, b: string): number {
+    if (a === b) return 0;
+    const m = a.length, n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
+        );
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+          dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
+        }
+      }
+    }
+    return dp[m][n];
+  }
+}
