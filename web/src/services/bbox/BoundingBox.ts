@@ -1,146 +1,106 @@
 /**
- * BoundingBox — axis-aligned bounding box
+ * BoundingBox — 2D axis-aligned bounding box
  *
- * Inspired by: turf.js bbox
- *
- * - min/max
- * - union/intersection
- * - contains point
- * - area/perimeter
+ * Inspired by: bounding-box
  */
 
-export interface Point { x: number; y: number; }
+export interface BBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 export class BoundingBox {
-  readonly minX: number;
-  readonly minY: number;
-  readonly maxX: number;
-  readonly maxY: number;
+  /**
+   * Create from two points.
+   */
+  static fromPoints(x1: number, y1: number, x2: number, y2: number): BBox {
+    return {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      width: Math.abs(x2 - x1),
+      height: Math.abs(y2 - y1),
+    };
+  }
 
-  constructor(minX: number, minY: number, maxX: number, maxY: number) {
-    if (maxX < minX || maxY < minY) {
-      throw new Error('BoundingBox: max must be >= min');
+  /**
+   * Create from many points.
+   */
+  static fromPointsList(points: Array<[number, number]>): BBox {
+    if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+    let minX = points[0][0], minY = points[0][1], maxX = minX, maxY = minY;
+    for (const [x, y] of points) {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
     }
-    this.minX = minX;
-    this.minY = minY;
-    this.maxX = maxX;
-    this.maxY = maxY;
-  }
-
-  get width(): number { return this.maxX - this.minX; }
-  get height(): number { return this.maxY - this.minY; }
-  get area(): number { return this.width * this.height; }
-  get perimeter(): number { return 2 * (this.width + this.height); }
-  get center(): Point { return { x: (this.minX + this.maxX) / 2, y: (this.minY + this.maxY) / 2 }; }
-
-  /**
-   * Compute bounding box from array of points.
-   */
-  static fromPoints(points: Point[]): BoundingBox {
-    if (points.length === 0) {
-      return new BoundingBox(0, 0, 0, 0);
-    }
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const p of points) {
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
-    }
-    return new BoundingBox(minX, minY, maxX, maxY);
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 
   /**
-   * Union of two boxes.
+   * Check intersection.
    */
-  union(other: BoundingBox): BoundingBox {
-    return new BoundingBox(
-      Math.min(this.minX, other.minX),
-      Math.min(this.minY, other.minY),
-      Math.max(this.maxX, other.maxX),
-      Math.max(this.maxY, other.maxY),
-    );
+  static intersects(a: BBox, b: BBox): boolean {
+    return !(a.x + a.width < b.x || b.x + b.width < a.x || a.y + a.height < b.y || b.y + b.height < a.y);
   }
 
   /**
-   * Intersection of two boxes (or null if disjoint).
+   * Compute union.
    */
-  intersection(other: BoundingBox): BoundingBox | null {
-    const minX = Math.max(this.minX, other.minX);
-    const minY = Math.max(this.minY, other.minY);
-    const maxX = Math.min(this.maxX, other.maxX);
-    const maxY = Math.min(this.maxY, other.maxY);
-    if (maxX < minX || maxY < minY) return null;
-    return new BoundingBox(minX, minY, maxX, maxY);
+  static union(a: BBox, b: BBox): BBox {
+    const minX = Math.min(a.x, b.x);
+    const minY = Math.min(a.y, b.y);
+    const maxX = Math.max(a.x + a.width, b.x + b.width);
+    const maxY = Math.max(a.y + a.height, b.y + b.height);
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 
   /**
-   * Does box contain point?
+   * Compute intersection.
    */
-  contains(p: Point): boolean {
-    return p.x >= this.minX && p.x <= this.maxX && p.y >= this.minY && p.y <= this.maxY;
+  static intersection(a: BBox, b: BBox): BBox | null {
+    const minX = Math.max(a.x, b.x);
+    const minY = Math.max(a.y, b.y);
+    const maxX = Math.min(a.x + a.width, b.x + b.width);
+    const maxY = Math.min(a.y + a.height, b.y + b.height);
+    if (maxX <= minX || maxY <= minY) return null;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 
   /**
-   * Does box contain another box?
+   * Check if point is inside.
    */
-  containsBox(other: BoundingBox): boolean {
-    return this.minX <= other.minX && this.minY <= other.minY &&
-           this.maxX >= other.maxX && this.maxY >= other.maxY;
+  static contains(b: BBox, x: number, y: number): boolean {
+    return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
   }
 
   /**
-   * Do boxes overlap?
+   * Area.
    */
-  overlaps(other: BoundingBox): boolean {
-    return this.intersection(other) !== null;
+  static area(b: BBox): number {
+    return b.width * b.height;
   }
 
   /**
-   * Expand by amount.
+   * Perimeter.
    */
-  expand(amount: number): BoundingBox {
-    return new BoundingBox(
-      this.minX - amount,
-      this.minY - amount,
-      this.maxX + amount,
-      this.maxY + amount,
-    );
+  static perimeter(b: BBox): number {
+    return 2 * (b.width + b.height);
   }
 
   /**
-   * Scale around center.
+   * Center.
    */
-  scale(factor: number): BoundingBox {
-    const c = this.center;
-    const w = (this.width * factor) / 2;
-    const h = (this.height * factor) / 2;
-    return new BoundingBox(c.x - w, c.y - h, c.x + w, c.y + h);
+  static center(b: BBox): { x: number; y: number } {
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
   }
 
   /**
-   * Translate by (dx, dy).
+   * Check if BBox is empty.
    */
-  translate(dx: number, dy: number): BoundingBox {
-    return new BoundingBox(this.minX + dx, this.minY + dy, this.maxX + dx, this.maxY + dy);
-  }
-
-  /**
-   * Is empty (zero size)?
-   */
-  get isEmpty(): boolean {
-    return this.width === 0 && this.height === 0;
-  }
-
-  /**
-   * Get corners.
-   */
-  get corners(): Point[] {
-    return [
-      { x: this.minX, y: this.minY },
-      { x: this.maxX, y: this.minY },
-      { x: this.maxX, y: this.maxY },
-      { x: this.minX, y: this.maxY },
-    ];
+  static isEmpty(b: BBox): boolean {
+    return b.width === 0 && b.height === 0;
   }
 }

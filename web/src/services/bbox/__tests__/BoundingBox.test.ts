@@ -6,108 +6,116 @@ import { describe, it, expect } from 'vitest';
 import { BoundingBox } from '../BoundingBox';
 
 describe('BoundingBox — basic', () => {
-  it('throws on invalid', () => {
-    expect(() => new BoundingBox(10, 10, 5, 5)).toThrow();
+  it('fromPoints', () => {
+    const b = BoundingBox.fromPoints(10, 20, 50, 80);
+    expect(b.x).toBe(10);
+    expect(b.y).toBe(20);
+    expect(b.width).toBe(40);
+    expect(b.height).toBe(60);
   });
 
-  it('width/height', () => {
-    const b = new BoundingBox(0, 0, 10, 5);
-    expect(b.width).toBe(10);
-    expect(b.height).toBe(5);
+  it('fromPoints reverse', () => {
+    const b = BoundingBox.fromPoints(50, 80, 10, 20);
+    expect(b.x).toBe(10);
   });
 
-  it('area/perimeter', () => {
-    const b = new BoundingBox(0, 0, 10, 5);
-    expect(b.area).toBe(50);
-    expect(b.perimeter).toBe(30);
+  it('fromPointsList', () => {
+    const b = BoundingBox.fromPointsList([[0, 0], [10, 5], [5, 20], [-3, 8]]);
+    expect(b.x).toBe(-3);
+    expect(b.y).toBe(0);
+    expect(b.width).toBe(13);
+    expect(b.height).toBe(20);
   });
 
-  it('center', () => {
-    const b = new BoundingBox(0, 0, 10, 20);
-    expect(b.center).toEqual({ x: 5, y: 10 });
-  });
-});
-
-describe('BoundingBox — fromPoints', () => {
-  it('empty array', () => {
-    const b = BoundingBox.fromPoints([]);
-    expect(b.area).toBe(0);
-  });
-
-  it('points', () => {
-    const b = BoundingBox.fromPoints([{ x: 1, y: 2 }, { x: 5, y: 8 }, { x: 3, y: 4 }]);
-    expect(b.minX).toBe(1);
-    expect(b.maxX).toBe(5);
+  it('empty', () => {
+    const b = BoundingBox.fromPointsList([]);
+    expect(b.width).toBe(0);
   });
 });
 
-describe('BoundingBox — operations', () => {
-  const a = new BoundingBox(0, 0, 10, 10);
-  const b = new BoundingBox(5, 5, 15, 15);
-
-  it('contains point', () => {
-    expect(a.contains({ x: 5, y: 5 })).toBe(true);
-    expect(a.contains({ x: 11, y: 5 })).toBe(false);
+describe('BoundingBox — intersect', () => {
+  it('intersect', () => {
+    const a = BoundingBox.fromPoints(0, 0, 10, 10);
+    const b = BoundingBox.fromPoints(5, 5, 15, 15);
+    expect(BoundingBox.intersects(a, b)).toBe(true);
   });
 
-  it('contains box', () => {
-    expect(a.containsBox(new BoundingBox(2, 2, 5, 5))).toBe(true);
+  it('no intersect', () => {
+    const a = BoundingBox.fromPoints(0, 0, 10, 10);
+    const b = BoundingBox.fromPoints(20, 20, 30, 30);
+    expect(BoundingBox.intersects(a, b)).toBe(false);
   });
 
-  it('overlaps', () => {
-    expect(a.overlaps(b)).toBe(true);
+  it('touching', () => {
+    const a = BoundingBox.fromPoints(0, 0, 10, 10);
+    const b = BoundingBox.fromPoints(10, 0, 20, 10);
+    // boxes that share an edge technically intersect at the edge
+    expect(BoundingBox.intersects(a, b)).toBe(true);
   });
+});
 
-  it('not overlaps', () => {
-    expect(a.overlaps(new BoundingBox(20, 20, 30, 30))).toBe(false);
-  });
-
+describe('BoundingBox — union/intersection', () => {
   it('union', () => {
-    const u = a.union(b);
-    expect(u.minX).toBe(0);
-    expect(u.maxX).toBe(15);
+    const a = BoundingBox.fromPoints(0, 0, 10, 10);
+    const b = BoundingBox.fromPoints(5, 5, 15, 15);
+    const u = BoundingBox.union(a, b);
+    expect(u.x).toBe(0);
+    expect(u.width).toBe(15);
   });
 
   it('intersection', () => {
-    const i = a.intersection(b);
-    expect(i?.minX).toBe(5);
+    const a = BoundingBox.fromPoints(0, 0, 10, 10);
+    const b = BoundingBox.fromPoints(5, 5, 15, 15);
+    const i = BoundingBox.intersection(a, b);
+    expect(i).not.toBeNull();
+    expect(i!.x).toBe(5);
+    expect(i!.width).toBe(5);
   });
 
-  it('intersection disjoint', () => {
-    const i = a.intersection(new BoundingBox(20, 20, 30, 30));
-    expect(i).toBe(null);
-  });
-});
-
-describe('BoundingBox — transform', () => {
-  const a = new BoundingBox(0, 0, 10, 10);
-
-  it('expand', () => {
-    const e = a.expand(2);
-    expect(e.minX).toBe(-2);
-    expect(e.maxX).toBe(12);
-  });
-
-  it('scale', () => {
-    const s = a.scale(2);
-    expect(s.width).toBe(20);
-  });
-
-  it('translate', () => {
-    const t = a.translate(5, 3);
-    expect(t.minX).toBe(5);
-    expect(t.minY).toBe(3);
+  it('intersection empty', () => {
+    const a = BoundingBox.fromPoints(0, 0, 5, 5);
+    const b = BoundingBox.fromPoints(10, 10, 15, 15);
+    expect(BoundingBox.intersection(a, b)).toBeNull();
   });
 });
 
-describe('BoundingBox — corners/isEmpty', () => {
-  it('corners', () => {
-    const b = new BoundingBox(0, 0, 10, 10);
-    expect(b.corners.length).toBe(4);
+describe('BoundingBox — contains', () => {
+  it('inside', () => {
+    const b = BoundingBox.fromPoints(0, 0, 10, 10);
+    expect(BoundingBox.contains(b, 5, 5)).toBe(true);
+  });
+
+  it('outside', () => {
+    const b = BoundingBox.fromPoints(0, 0, 10, 10);
+    expect(BoundingBox.contains(b, 15, 5)).toBe(false);
+  });
+
+  it('edge', () => {
+    const b = BoundingBox.fromPoints(0, 0, 10, 10);
+    expect(BoundingBox.contains(b, 10, 10)).toBe(true);
+  });
+});
+
+describe('BoundingBox — metrics', () => {
+  it('area', () => {
+    const b = BoundingBox.fromPoints(0, 0, 10, 5);
+    expect(BoundingBox.area(b)).toBe(50);
+  });
+
+  it('perimeter', () => {
+    const b = BoundingBox.fromPoints(0, 0, 10, 5);
+    expect(BoundingBox.perimeter(b)).toBe(30);
+  });
+
+  it('center', () => {
+    const b = BoundingBox.fromPoints(0, 0, 10, 10);
+    const c = BoundingBox.center(b);
+    expect(c.x).toBe(5);
+    expect(c.y).toBe(5);
   });
 
   it('isEmpty', () => {
-    const b = new BoundingBox(5, 5, 5, 5);
-    expect(b.isEmpty).toBe(true);
+    const b = BoundingBox.fromPoints(5, 5, 5, 5);
+    expect(BoundingBox.isEmpty(b)).toBe(true);
   });
 });
