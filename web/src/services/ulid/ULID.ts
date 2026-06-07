@@ -1,97 +1,110 @@
 /**
  * ULID — Universally Unique Lexicographically Sortable Identifier
  *
- * Inspired by: ulid spec (https://github.com/ulid/spec)
- *
- * Format: 26 characters Crockford base32
- *   - First 10 chars: 48-bit timestamp (ms since Unix epoch)
- *   - Last 16 chars: 80-bit random
- *
- * Lexicographically sortable by creation time.
+ * 26 chars: 10 time + 16 random (Crockford Base32)
  */
 
-import { randomBytes } from 'node:crypto';
-
-const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford base32 (no I, L, O, U)
-const ENCODING_LEN = ENCODING.length;
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const ENCODING_LEN = 32;
 const TIME_LEN = 10;
 const RANDOM_LEN = 16;
 
-const TIME_MAX = (1n << 48n) - 1n;
-
-function encodeTime(now: number): string {
-  let value = BigInt(now);
-  if (value < 0n || value > TIME_MAX) throw new Error('Time out of range');
-  let out = '';
-  for (let i = TIME_LEN - 1; i >= 0; i--) {
-    const mod = Number(value % BigInt(ENCODING_LEN));
-    out = ENCODING[mod] + out;
-    value = value / BigInt(ENCODING_LEN);
-  }
-  return out;
-}
-
-function encodeRandom(): string {
-  const buf = randomBytes(10);
-  let value = 0n;
-  for (const b of buf) value = (value << 8n) | BigInt(b);
-  let out = '';
-  for (let i = RANDOM_LEN - 1; i >= 0; i--) {
-    const mod = Number(value % BigInt(ENCODING_LEN));
-    out = ENCODING[mod] + out;
-    value = value / BigInt(ENCODING_LEN);
-  }
-  return out;
-}
-
 export class ULID {
   /**
-   * Generate a ULID for the current time.
+   * Generate a new ULID.
    */
-  static generate(): string {
-    return encodeTime(Date.now()) + encodeRandom();
-  }
-
-  /**
-   * Generate a ULID for a specific time.
-   */
-  static generateAt(timestamp: number): string {
-    return encodeTime(timestamp) + encodeRandom();
-  }
-
-  /**
-   * Extract timestamp from ULID.
-   */
-  static timestamp(ulid: string): number {
-    const timeChars = ulid.slice(0, TIME_LEN);
-    let value = 0n;
-    for (const ch of timeChars) {
-      const idx = ENCODING.indexOf(ch);
-      if (idx < 0) throw new Error('Invalid ULID');
-      value = value * BigInt(ENCODING_LEN) + BigInt(idx);
+  static generate(time: number = Date.now()): string {
+    if (time < 0 || time > 281474976710655) throw new Error('Invalid time');
+    let id = '';
+    let t = time;
+    for (let i = TIME_LEN - 1; i >= 0; i--) {
+      const mod = t % 32;
+      id = CROCKFORD[mod] + id;
+      t = (t - mod) / 32;
     }
-    return Number(value);
+    for (let i = 0; i < RANDOM_LEN; i++) {
+      id += CROCKFORD[Math.floor(Math.random() * 32)];
+    }
+    return id;
   }
 
   /**
    * Validate ULID format.
    */
-  static isValid(ulid: string): boolean {
-    if (ulid.length !== 26) return false;
-    return [...ulid].every((c) => ENCODING.includes(c));
+  static isValid(id: string): boolean {
+    if (id.length !== TIME_LEN + RANDOM_LEN) return false;
+    return /^[0-7][0-9A-HJKMNP-TV-Z]{9}[0-9A-HJKMNP-TV-Z]{16}$/i.test(id);
+  }
+
+  /**
+   * Extract time from ULID.
+   */
+  static getTime(id: string): number {
+    if (!ULID.isValid(id)) throw new Error('Invalid ULID');
+    let t = 0;
+    for (let i = 0; i < TIME_LEN; i++) {
+      const c = ULID._decodeChar(id[i]);
+      t = t * 32 + c;
+    }
+    return t;
+  }
+
+  /**
+   * Get random part.
+   */
+  static getRandom(id: string): string {
+    if (!ULID.isValid(id)) throw new Error('Invalid ULID');
+    return id.slice(TIME_LEN);
   }
 
   /**
    * Compare two ULIDs (sortable).
    */
   static compare(a: string, b: string): number {
-    return a < b ? -1 : a > b ? 1 : 0;
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
   }
 
   /**
-   * Generate a monotonic batch.
+   * Build a monotonic ULID.
    */
-  static batch(n: number): string[] {
-    return Array.from({ length: n }, () => this.generate());
+  static monotonic(prev: string, time: number = Date.now()): string {
+    if (!prev) return ULID.generate(time);
+    const prevTime = ULID.getTime(prev);
+    if (time > prevTime) return ULID.generate(time);
+    // Increment random part
+    const randomPart = ULID.getRandom(prev);
+    const next = ULID._incrementRandom(randomPart);
+    let id = '';
+    let t = time;
+    for (let i = TIME_LEN - 1; i >= 0; i--) {
+      const mod = t % 32;
+      id = CROCKFORD[mod] + id;
+      t = (t - mod) / 32;
+    }
+    return id + next;
+  }
+
+  private static _decodeChar(c: string): number {
+    const idx = CROCKFORD.indexOf(c.toUpperCase());
+    if (idx < 0) throw new Error(`Invalid char: ${c}`);
+    return idx;
+  }
+
+  private static _incrementRandom(s: string): string {
+    let carry = 1;
+    let arr = s.split('');
+    for (let i = arr.length - 1; i >= 0 && carry; i--) {
+      const idx = CROCKFORD.indexOf(arr[i]) + carry;
+      if (idx >= 32) {
+        arr[i] = CROCKFORD[0];
+        carry = 1;
+      } else {
+        arr[i] = CROCKFORD[idx];
+        carry = 0;
+      }
+    }
+    return arr.join('');
   }
 }

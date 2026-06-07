@@ -5,65 +5,75 @@
 import { describe, it, expect } from 'vitest';
 import { ULID } from '../ULID';
 
-describe('ULID — basic', () => {
-  it('generates 26 chars', () => {
-    const u = ULID.generate();
-    expect(u.length).toBe(26);
+describe('ULID — generate', () => {
+  it('length 26', () => {
+    const id = ULID.generate();
+    expect(id.length).toBe(26);
   });
 
-  it('validates generated', () => {
-    const u = ULID.generate();
-    expect(ULID.isValid(u)).toBe(true);
+  it('uppercase', () => {
+    const id = ULID.generate();
+    expect(id).toBe(id.toUpperCase());
   });
 
-  it('uses Crockford base32 (no I, L, O, U)', () => {
-    for (let i = 0; i < 50; i++) {
-      const u = ULID.generate();
-      expect(/[ILOU]/.test(u)).toBe(false);
-    }
+  it('custom time', () => {
+    const id = ULID.generate(1000000);
+    expect(ULID.getTime(id)).toBe(1000000);
   });
 });
 
-describe('ULID — timestamp', () => {
-  it('extracts timestamp', () => {
-    const t = Date.now();
-    const u = ULID.generateAt(t);
-    expect(ULID.timestamp(u)).toBe(t);
+describe('ULID — validate', () => {
+  it('valid', () => {
+    expect(ULID.isValid(ULID.generate())).toBe(true);
   });
 
-  it('round trip', () => {
-    const u = ULID.generate();
-    const t = ULID.timestamp(u);
-    expect(t).toBeLessThanOrEqual(Date.now());
-  });
-});
-
-describe('ULID — isValid', () => {
-  it('rejects wrong length', () => {
+  it('invalid length', () => {
     expect(ULID.isValid('abc')).toBe(false);
   });
 
-  it('rejects invalid chars', () => {
-    expect(ULID.isValid('00000000000000000000000000I')).toBe(false);
+  it('invalid char', () => {
+    // 'I' is not in Crockford base32
+    expect(ULID.isValid('I' + '0'.repeat(25))).toBe(false);
+  });
+});
+
+describe('ULID — parts', () => {
+  it('getTime', () => {
+    const t = Date.now();
+    const id = ULID.generate(t);
+    expect(ULID.getTime(id)).toBe(t);
   });
 
-  it('accepts valid', () => {
-    expect(ULID.isValid('00000000000000000000000000')).toBe(true);
+  it('getRandom', () => {
+    const id = ULID.generate();
+    expect(ULID.getRandom(id).length).toBe(16);
   });
 });
 
 describe('ULID — compare', () => {
-  it('sortable by time', () => {
-    const a = ULID.generateAt(1000);
-    const b = ULID.generateAt(2000);
+  it('sortable', () => {
+    const a = ULID.generate(1000);
+    const b = ULID.generate(2000);
     expect(ULID.compare(a, b)).toBeLessThan(0);
+  });
+
+  it('equal', () => {
+    const a = ULID.generate(1000);
+    const b = ULID.generate(1000);
+    expect(ULID.compare(a, b)).not.toBe(0);
   });
 });
 
-describe('ULID — batch', () => {
-  it('batch of N', () => {
-    const b = ULID.batch(100);
-    expect(b.length).toBe(100);
-    expect(new Set(b).size).toBe(100);
+describe('ULID — monotonic', () => {
+  it('monotonic', () => {
+    const a = ULID.generate(1000);
+    const b = ULID.monotonic(a, 1000);
+    expect(ULID.compare(a, b)).toBeLessThan(0);
+  });
+
+  it('monotonic different time', () => {
+    const a = ULID.generate(1000);
+    const b = ULID.monotonic(a, 2000);
+    expect(ULID.getTime(b)).toBe(2000);
   });
 });
