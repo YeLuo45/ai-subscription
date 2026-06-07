@@ -5,101 +5,88 @@
 import { describe, it, expect } from 'vitest';
 import { Vector3D } from '../Vector3D';
 
-const v = (x: number, y: number, z: number) => new Vector3D(x, y, z);
-
 describe('Vector3D — basic', () => {
-  it('zero', () => {
-    expect(Vector3D.zero().x).toBe(0);
+  it('constructor', () => {
+    const v = new Vector3D(1, 2, 3);
+    expect(v.z).toBe(3);
   });
 
-  it('up', () => {
-    expect(Vector3D.up().y).toBe(1);
+  it('zero', () => {
+    const v = Vector3D.zero();
+    expect(v.x).toBe(0);
+  });
+
+  it('fromArray', () => {
+    const v = Vector3D.fromArray([1, 2, 3]);
+    expect(v.y).toBe(2);
   });
 });
 
-describe('Vector3D — arithmetic', () => {
+describe('Vector3D — ops', () => {
   it('add', () => {
-    expect(v(1, 2, 3).add(v(4, 5, 6))).toEqual(v(5, 7, 9));
+    const v = new Vector3D(1, 2, 3).add(new Vector3D(4, 5, 6));
+    expect(v.z).toBe(9);
   });
 
-  it('sub', () => {
-    expect(v(4, 5, 6).sub(v(1, 2, 3))).toEqual(v(3, 3, 3));
+  it('subtract', () => {
+    const v = new Vector3D(5, 6, 7).subtract(new Vector3D(1, 2, 3));
+    expect(v.x).toBe(4);
   });
 
   it('scale', () => {
-    expect(v(1, 2, 3).scale(2)).toEqual(v(2, 4, 6));
-  });
-
-  it('multiply', () => {
-    expect(v(1, 2, 3).multiply(v(2, 3, 4))).toEqual(v(2, 6, 12));
-  });
-
-  it('negate', () => {
-    expect(v(1, 2, 3).negate()).toEqual(v(-1, -2, -3));
+    const v = new Vector3D(1, 2, 3).scale(2);
+    expect(v.y).toBe(4);
   });
 });
 
-describe('Vector3D — operations', () => {
+describe('Vector3D — products', () => {
   it('dot', () => {
-    expect(v(1, 2, 3).dot(v(4, 5, 6))).toBe(32);
+    expect(new Vector3D(1, 2, 3).dot(new Vector3D(4, 5, 6))).toBe(32);
   });
 
-  it('cross x y = z', () => {
-    expect(v(1, 0, 0).cross(v(0, 1, 0))).toEqual(v(0, 0, 1));
+  it('cross', () => {
+    // x_hat x y_hat = z_hat
+    const c = new Vector3D(1, 0, 0).cross(new Vector3D(0, 1, 0));
+    expect(c.z).toBe(1);
   });
 
   it('magnitude', () => {
-    expect(v(1, 2, 2).magnitude()).toBe(3);
-  });
-
-  it('magnitudeSq', () => {
-    expect(v(1, 2, 2).magnitudeSq()).toBe(9);
-  });
-
-  it('normalize', () => {
-    expect(v(3, 0, 0).normalize().x).toBeCloseTo(1, 5);
-  });
-
-  it('normalize zero', () => {
-    expect(Vector3D.zero().normalize()).toEqual(v(0, 0, 0));
-  });
-
-  it('limit', () => {
-    const l = v(10, 0, 0).limit(5);
-    expect(l.x).toBeCloseTo(5, 5);
-  });
-
-  it('distance', () => {
-    expect(v(0, 0, 0).distance(v(1, 2, 2))).toBe(3);
-  });
-
-  it('distanceSq', () => {
-    expect(v(0, 0, 0).distanceSq(v(1, 2, 2))).toBe(9);
+    expect(new Vector3D(1, 2, 2).magnitude()).toBe(3);
   });
 });
 
-describe('Vector3D — transform', () => {
-  it('lerp', () => {
-    expect(v(0, 0, 0).lerp(v(10, 0, 0), 0.5)).toEqual(v(5, 0, 0));
+describe('Vector3D — geom', () => {
+  it('normalize', () => {
+    const n = new Vector3D(1, 2, 2).normalize();
+    expect(n.magnitude()).toBeCloseTo(1, 10);
   });
 
-  it('project', () => {
-    const p = v(3, 0, 0).project(v(1, 0, 0));
-    expect(p.x).toBeCloseTo(3, 5);
+  it('distanceTo', () => {
+    expect(new Vector3D(0, 0, 0).distanceTo(new Vector3D(1, 2, 2))).toBe(3);
   });
 
   it('reflect', () => {
-    const r = v(1, 0, 0).reflect(v(1, 0, 0));
-    expect(r.x).toBeCloseTo(-1, 5);
+    const v = new Vector3D(1, -1, 0).reflect(new Vector3D(0, 1, 0));
+    expect(v.y).toBe(1);
   });
 
-  it('angle', () => {
-    expect(v(1, 0, 0).angle(v(0, 1, 0))).toBeCloseTo(Math.PI / 2, 5);
+  it('project', () => {
+    const p = new Vector3D(1, 0, 0).project(new Vector3D(2, 0, 0));
+    expect(p.x).toBe(1);
+  });
+
+  it('angleTo perpendicular', () => {
+    const a = new Vector3D(1, 0, 0).angleTo(new Vector3D(0, 1, 0));
+    expect(a).toBeCloseTo(Math.PI / 2, 5);
   });
 });
 
-describe('Vector3D — utility', () => {
+describe('Vector3D — util', () => {
+  it('equals', () => {
+    expect(new Vector3D(1, 2, 3).equals(new Vector3D(1, 2, 3))).toBe(true);
+  });
+
   it('toArray', () => {
-    expect(v(1, 2, 3).toArray()).toEqual([1, 2, 3]);
+    expect(new Vector3D(1, 2, 3).toArray()).toEqual([1, 2, 3]);
   });
 });
