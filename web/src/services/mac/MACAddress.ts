@@ -1,126 +1,86 @@
 /**
- * MACAddress — MAC (EUI-48) address
+ * MACAddress — MAC address validation and manipulation
  *
  * Inspired by: mac-address
- *
- * Format: XX:XX:XX:XX:XX:XX (48-bit)
  */
 
-const OUI_MULTICAST_BIT = 0x01;
-
 export class MACAddress {
-  readonly bytes: number[]; // 6 bytes
-
-  constructor(bytes: number[]) {
-    if (bytes.length !== 6) throw new Error('MAC must be 6 bytes');
-    for (const b of bytes) {
-      if (b < 0 || b > 255 || !Number.isInteger(b)) throw new Error('Invalid byte');
-    }
-    this.bytes = [...bytes];
+  /**
+   * Validate MAC address.
+   */
+  static isValid(mac: string): boolean {
+    return /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(mac);
   }
 
   /**
-   * Parse MAC string.
-   * Supports: XX:XX:XX:XX:XX:XX, XX-XX-XX-XX-XX-XX, XXXX.XXXX.XXXX
+   * Normalize to colon-separated lowercase.
    */
-  static parse(input: string): MACAddress | null {
-    const s = input.trim();
-    const hex = s.replace(/[:\-.]/g, '');
-    if (!/^[0-9a-fA-F]{12}$/.test(hex)) return null;
-    const bytes: number[] = [];
-    for (let i = 0; i < 12; i += 2) {
-      bytes.push(parseInt(hex.slice(i, i + 2), 16));
-    }
-    return new MACAddress(bytes);
+  static normalize(mac: string): string {
+    return mac.toLowerCase().replace(/-/g, ':');
   }
 
   /**
-   * To canonical colon format.
+   * Format with custom separator.
    */
-  toString(): string {
-    return this.bytes.map((b) => b.toString(16).padStart(2, '0')).join(':');
+  static format(mac: string, separator: string = ':'): string {
+    const cleaned = mac.replace(/[:-]/g, '').toLowerCase();
+    return cleaned.match(/.{1,2}/g)?.join(separator) ?? cleaned;
   }
 
   /**
-   * To dash format.
+   * Get OUI (first 3 octets).
    */
-  toDash(): string {
-    return this.bytes.map((b) => b.toString(16).padStart(2, '0')).join('-');
+  static getOUI(mac: string): string {
+    const parts = MACAddress.normalize(mac).split(':');
+    return parts.slice(0, 3).join(':');
   }
 
   /**
-   * To Cisco format.
+   * Check if MAC is multicast (lowest bit of first octet is 1).
    */
-  toCisco(): string {
-    return [0, 2, 4].map((i) =>
-      this.bytes.slice(i, i + 2).map((b) => b.toString(16).padStart(2, '0')).join(''),
-    ).join('.');
+  static isMulticast(mac: string): boolean {
+    const first = parseInt(MACAddress.normalize(mac).split(':')[0], 16);
+    return (first & 0x01) === 1;
   }
 
   /**
-   * Is multicast (lowest bit of first byte)?
+   * Check if MAC is locally administered (bit 1 of first octet is 1).
    */
-  isMulticast(): boolean {
-    return (this.bytes[0] & OUI_MULTICAST_BIT) === 1;
+  static isLocal(mac: string): boolean {
+    const first = parseInt(MACAddress.normalize(mac).split(':')[0], 16);
+    return (first & 0x02) === 2;
   }
 
   /**
-   * Is unicast (not multicast)?
+   * Check if MAC is unicast (not multicast).
    */
-  isUnicast(): boolean { return !this.isMulticast(); }
-
-  /**
-   * Is universally administered (lowest bit of 2nd byte = 0)?
-   */
-  isUniversal(): boolean {
-    return (this.bytes[0] & 0x02) === 0;
+  static isUnicast(mac: string): boolean {
+    return !MACAddress.isMulticast(mac);
   }
 
   /**
-   * Is locally administered.
+   * Generate random MAC with given OUI.
    */
-  isLocal(): boolean { return !this.isUniversal(); }
-
-  /**
-   * OUI (first 3 bytes).
-   */
-  oui(): string {
-    return this.bytes.slice(0, 3).map((b) => b.toString(16).padStart(2, '0')).join(':');
+  static randomWithOUI(oui: string = '00:00:00'): string {
+    const r = () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+    return MACAddress.normalize(`${oui}:${r()}:${r()}:${r()}`);
   }
 
   /**
-   * NIC suffix (last 3 bytes).
+   * Increment MAC.
    */
-  nic(): string {
-    return this.bytes.slice(3).map((b) => b.toString(16).padStart(2, '0')).join(':');
+  static increment(mac: string, n: number = 1): string {
+    const cleaned = mac.replace(/[:-]/g, '').toLowerCase();
+    let num = parseInt(cleaned, 16);
+    num = (num + n) & 0xffffffffffff;
+    return num.toString(16).padStart(12, '0').match(/.{1,2}/g)!.join(':');
   }
 
   /**
-   * Equals.
+   * Convert to integer.
    */
-  equals(other: MACAddress): boolean {
-    return this.bytes.every((b, i) => b === other.bytes[i]);
-  }
-
-  /**
-   * Is broadcast (FF:FF:FF:FF:FF:FF)?
-   */
-  isBroadcast(): boolean {
-    return this.bytes.every((b) => b === 0xff);
-  }
-
-  /**
-   * Generate random MAC with given OUI (first 3 bytes).
-   */
-  static randomWithOui(oui: string): MACAddress {
-    const parsed = MACAddress.parse(oui);
-    if (!parsed) throw new Error('Invalid OUI');
-    const bytes = [
-      parsed.bytes[0], parsed.bytes[1], parsed.bytes[2],
-      Math.floor(Math.random() * 256),
-      Math.floor(Math.random() * 256),
-      Math.floor(Math.random() * 256),
-    ];
-    return new MACAddress(bytes);
+  static toInt(mac: string): number {
+    const cleaned = mac.replace(/[:-]/g, '').toLowerCase();
+    return parseInt(cleaned, 16);
   }
 }

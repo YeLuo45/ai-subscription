@@ -5,107 +5,82 @@
 import { describe, it, expect } from 'vitest';
 import { MACAddress } from '../MACAddress';
 
-describe('MACAddress — parse', () => {
-  it('colon', () => {
-    const m = MACAddress.parse('aa:bb:cc:dd:ee:ff');
-    expect(m?.toString()).toBe('aa:bb:cc:dd:ee:ff');
+describe('MACAddress — validate', () => {
+  it('valid colon', () => {
+    expect(MACAddress.isValid('00:1B:44:11:3A:B7')).toBe(true);
   });
 
-  it('dash', () => {
-    const m = MACAddress.parse('aa-bb-cc-dd-ee-ff');
-    expect(m?.toString()).toBe('aa:bb:cc:dd:ee:ff');
+  it('valid dash', () => {
+    expect(MACAddress.isValid('00-1B-44-11-3A-B7')).toBe(true);
   });
 
-  it('cisco', () => {
-    const m = MACAddress.parse('aabb.ccdd.eeff');
-    expect(m?.toString()).toBe('aa:bb:cc:dd:ee:ff');
+  it('invalid short', () => {
+    expect(MACAddress.isValid('00:1B:44:11:3A')).toBe(false);
   });
 
-  it('invalid', () => {
-    expect(MACAddress.parse('garbage')).toBe(null);
-    expect(MACAddress.parse('aa:bb:cc')).toBe(null);
-  });
-
-  it('case insensitive', () => {
-    expect(MACAddress.parse('AA:BB:CC:DD:EE:FF')?.bytes[0]).toBe(0xAA);
+  it('invalid text', () => {
+    expect(MACAddress.isValid('hello')).toBe(false);
   });
 });
 
-describe('MACAddress — formats', () => {
-  const m = new MACAddress([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
-
-  it('toString', () => {
-    expect(m.toString()).toBe('aa:bb:cc:dd:ee:ff');
+describe('MACAddress — format', () => {
+  it('normalize', () => {
+    expect(MACAddress.normalize('00-1B-44-11-3A-B7')).toBe('00:1b:44:11:3a:b7');
   });
 
-  it('toDash', () => {
-    expect(m.toDash()).toBe('aa-bb-cc-dd-ee-ff');
-  });
-
-  it('toCisco', () => {
-    expect(m.toCisco()).toBe('aabb.ccdd.eeff');
+  it('format dash', () => {
+    expect(MACAddress.format('00:1B:44:11:3A:B7', '-')).toBe('00-1b-44-11-3a-b7');
   });
 });
 
-describe('MACAddress — properties', () => {
-  it('multicast (bit 0 set)', () => {
-    expect(new MACAddress([0x01, 0, 0, 0, 0, 0]).isMulticast()).toBe(true);
-  });
-
-  it('unicast (bit 0 unset)', () => {
-    expect(new MACAddress([0x00, 0, 0, 0, 0, 0]).isUnicast()).toBe(true);
-  });
-
-  it('universal (bit 1 unset)', () => {
-    expect(new MACAddress([0x00, 0, 0, 0, 0, 0]).isUniversal()).toBe(true);
-  });
-
-  it('local (bit 1 set)', () => {
-    expect(new MACAddress([0x02, 0, 0, 0, 0, 0]).isLocal()).toBe(true);
-  });
-
-  it('broadcast', () => {
-    expect(new MACAddress([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]).isBroadcast()).toBe(true);
-  });
-
-  it('oui', () => {
-    const m = new MACAddress([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
-    expect(m.oui()).toBe('aa:bb:cc');
-  });
-
-  it('nic', () => {
-    const m = new MACAddress([0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
-    expect(m.nic()).toBe('dd:ee:ff');
+describe('MACAddress — OUI', () => {
+  it('getOUI', () => {
+    expect(MACAddress.getOUI('00:1B:44:11:3A:B7')).toBe('00:1b:44');
   });
 });
 
-describe('MACAddress — equals', () => {
-  it('equals', () => {
-    expect(new MACAddress([1, 2, 3, 4, 5, 6]).equals(new MACAddress([1, 2, 3, 4, 5, 6]))).toBe(true);
+describe('MACAddress — type', () => {
+  it('multicast 01:', () => {
+    expect(MACAddress.isMulticast('01:00:5E:00:00:01')).toBe(true);
   });
 
-  it('not equals', () => {
-    expect(new MACAddress([1, 2, 3, 4, 5, 6]).equals(new MACAddress([1, 2, 3, 4, 5, 7]))).toBe(false);
+  it('not multicast', () => {
+    expect(MACAddress.isMulticast('00:1B:44:11:3A:B7')).toBe(false);
+  });
+
+  it('local', () => {
+    expect(MACAddress.isLocal('02:00:00:00:00:00')).toBe(true);
+  });
+
+  it('not local', () => {
+    expect(MACAddress.isLocal('00:1B:44:11:3A:B7')).toBe(false);
+  });
+
+  it('unicast', () => {
+    expect(MACAddress.isUnicast('00:1B:44:11:3A:B7')).toBe(true);
   });
 });
 
-describe('MACAddress — constructor', () => {
-  it('validates length', () => {
-    expect(() => new MACAddress([1, 2, 3])).toThrow();
-  });
-
-  it('validates bytes', () => {
-    expect(() => new MACAddress([256, 0, 0, 0, 0, 0])).toThrow();
+describe('MACAddress — random', () => {
+  it('random with OUI', () => {
+    const m = MACAddress.randomWithOUI('aa:bb:cc');
+    expect(m.startsWith('aa:bb:cc')).toBe(true);
   });
 });
 
-describe('MACAddress — randomWithOui', () => {
-  it('generates with OUI', () => {
-    const m = MACAddress.randomWithOui('aa:bb:cc:00:00:00');
-    expect(m.oui()).toBe('aa:bb:cc');
+describe('MACAddress — increment', () => {
+  it('increment 1', () => {
+    expect(MACAddress.increment('00:00:00:00:00:01')).toBe('00:00:00:00:00:02');
   });
 
-  it('invalid OUI', () => {
-    expect(() => MACAddress.randomWithOui('garbage')).toThrow();
+  it('increment 10', () => {
+    expect(MACAddress.increment('00:00:00:00:00:00', 10)).toBe('00:00:00:00:00:0a');
+  });
+});
+
+describe('MACAddress — toInt', () => {
+  it('toInt', () => {
+    const n = MACAddress.toInt('00:00:00:00:00:01');
+    expect(n).toBe(1);
   });
 });
