@@ -28,6 +28,9 @@ export { type TaskType } from './providers-ai-subscription';
 // fix esbuild "Unexpected export" parse error)
 import { calculateCost as _calcCost, addRecord as _addRecord } from './cost-tracker';
 import { getCostAlertService as _getCostAlert } from './cost-alert';
+import { checkQuota as _checkQuota } from './billing/quota-tracker';
+import { saveRoutingDecision as _saveRoutingDecision } from './routing-history';
+import { getFallbackChain as _getFallbackChain } from './providers-ai-subscription';
 
 // Local model support - task types that can use local models
 const LOCAL_CAPABLE_TASKS = ['quick-summary', 'tag-generation', 'intent-classification'];
@@ -255,8 +258,7 @@ export async function routeAndCall(
     saveRoutingDecisionAsync(routingDecision);
 
   // Check quota before making the call
-  const { checkQuota } = await import('./billing/quota-tracker');
-  const quotaCheck = await checkQuota();
+  const quotaCheck = await _checkQuota();
   if (!quotaCheck.allowed) {
     throw new Error(`Quota exceeded: ${quotaCheck.reason}. Please upgrade your plan.`);
   }
@@ -398,15 +400,11 @@ export function getRoutingExplanation(): RoutingExplanation | null {
  */
 function saveRoutingDecisionAsync(decision: RoutingDecision): void {
   if (typeof window === 'undefined') return; // Only run in browser
-  
+
   lastRoutingDecision = decision;
-  
-  import('./routing-history').then(({ saveRoutingDecision }) => {
-    saveRoutingDecision(decision).catch(() => {
-      // Silently fail
-    });
-  }).catch(() => {
-    // Routing history module not available
+
+  _saveRoutingDecision(decision).catch(() => {
+    // Silently fail
   });
 }
 
@@ -434,8 +432,7 @@ export async function routeAndCallWithFallback(
   } = options;
 
   // Get fallback chain
-  const { getFallbackChain } = await import('./providers-ai-subscription');
-  const chain = getFallbackChain(taskType);
+  const chain = _getFallbackChain(taskType);
 
   let lastError: Error | undefined;
 
