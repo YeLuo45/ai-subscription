@@ -303,9 +303,9 @@ function recordCostAsync(
   usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined,
   success: boolean
 ): void {
-  // Dynamically import cost tracker to avoid circular deps
-  const _import = (s: string) => import(/* @vite-ignore */ s);
-  _import('./cost-tracker').then(({ calculateCost, addRecord }) => {
+  // Static import (previously dynamic, refactored for esbuild compat)
+  try {
+    const { calculateCost, addRecord } = require('./cost-tracker');
     const inputTokens = usage?.promptTokens || 0;
     const outputTokens = usage?.completionTokens || 0;
     const costUSD = calculateCost(modelId, inputTokens, outputTokens);
@@ -324,9 +324,9 @@ function recordCostAsync(
     }).catch(() => {
       // Silently fail
     });
-  }).catch(() => {
+  } catch {
     // Cost tracker not available
-  });
+  }
 }
 
 /**
@@ -335,15 +335,15 @@ function recordCostAsync(
 function triggerCostAlertCheck(): void {
   if (typeof window === 'undefined') return; // Only run in browser
 
-  const _import = (s: string) => import(/* @vite-ignore */ s);
-  _import('./cost-alert').then(({ getCostAlertService }) => {
+  try {
+    const { getCostAlertService } = require('./cost-alert');
     const service = getCostAlertService();
     service.checkAndAlert().catch(() => {
       // Silently fail
     });
-  }).catch(() => {
+  } catch {
     // Cost alert module not available
-  });
+  }
 }
 
 // ============================================================
