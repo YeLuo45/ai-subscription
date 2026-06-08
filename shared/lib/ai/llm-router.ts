@@ -304,7 +304,7 @@ function recordCostAsync(
   success: boolean
 ): void {
   // Dynamically import cost tracker to avoid circular deps
-  import('./cost-tracker').then(({ calculateCost, addRecord }) => {
+  void import('./cost-tracker').then(({ calculateCost, addRecord }) => {
     const inputTokens = usage?.promptTokens || 0;
     const outputTokens = usage?.completionTokens || 0;
     const costUSD = calculateCost(modelId, inputTokens, outputTokens);
@@ -333,8 +333,8 @@ function recordCostAsync(
  */
 function triggerCostAlertCheck(): void {
   if (typeof window === 'undefined') return; // Only run in browser
-  
-  import('./cost-alert').then(({ getCostAlertService }) => {
+
+ void import('./cost-alert').then(({ getCostAlertService }) => {
     const service = getCostAlertService();
     service.checkAndAlert().catch(() => {
       // Silently fail
