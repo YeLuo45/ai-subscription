@@ -1,126 +1,86 @@
 /**
- * LRUCache — Least Recently Used cache
- *
- * Map-based LRU with O(1) get/set via JS Map insertion-order semantics.
- * On access (get or set), the key moves to the end (most recently used).
- * When over capacity, the first key is evicted (least recently used).
+ * LRUCache — least recently used cache
  */
 
+class CacheNode<K, V> {
+  key: K;
+  value: V;
+  prev: CacheNode<K, V> | null = null;
+  next: CacheNode<K, V> | null = null;
+  constructor(key: K, value: V) { this.key = key; this.value = value; }
+}
+
 export class LRUCache<K, V> {
-  private map: Map<K, V> = new Map();
-  private capacity: number;
-  private hits: number = 0;
-  private misses: number = 0;
-  private evictions: number = 0;
+  private _capacity: number;
+  private _map = new Map<K, CacheNode<K, V>>();
+  private _head: CacheNode<K, V> | null = null; // dummy
+  private _tail: CacheNode<K, V> | null = null; // dummy
+  private _size = 0;
 
-  constructor(capacity: number = 100) {
-    if (capacity <= 0) throw new Error('capacity must be > 0');
-    this.capacity = capacity;
+  constructor(capacity: number = 10) {
+    this._capacity = capacity;
+    // Initialize dummy head/tail
+    this._head = new CacheNode<K, V>(null as any, null as any);
+    this._tail = new CacheNode<K, V>(null as any, null as any);
+    this._head.next = this._tail;
+    this._tail.prev = this._head;
   }
 
-  /** Get value, marks as recently used. */
+  size(): number { return this._size; }
+  capacity(): number { return this._capacity; }
+
   get(key: K): V | undefined {
-    if (!this.map.has(key)) {
-      this.misses += 1;
-      return undefined;
-    }
-    const value = this.map.get(key)!;
-    // Re-insert to move to MRU end
-    this.map.delete(key);
-    this.map.set(key, value);
-    this.hits += 1;
-    return value;
+    const n = this._map.get(key);
+    if (!n) return undefined;
+    this._moveToFront(n);
+    return n.value;
   }
 
-  /** Put value, marks as recently used. Evicts LRU if over capacity. */
-  set(key: K, value: V): V {
-    if (this.map.has(key)) {
-      this.map.delete(key);
-    } else if (this.map.size >= this.capacity) {
-      // Evict LRU (first key)
-      const lruKey = this.map.keys().next().value;
-      if (lruKey !== undefined) {
-        this.map.delete(lruKey);
-        this.evictions += 1;
+  put(key: K, value: V): void {
+    let n = this._map.get(key);
+    if (n) {
+      n.value = value;
+      this._moveToFront(n);
+    } else {
+      n = new CacheNode(key, value);
+      this._map.set(key, n);
+      this._addToFront(n);
+      this._size++;
+      if (this._size > this._capacity) {
+        const lru = this._tail!.prev!;
+        this._remove(lru);
+        this._map.delete(lru.key);
+        this._size--;
       }
     }
-    this.map.set(key, value);
-    return value;
   }
 
-  /** Check if key exists (without affecting order). */
-  has(key: K): boolean {
-    return this.map.has(key);
-  }
+  has(key: K): boolean { return this._map.has(key); }
 
-  /** Delete a key. */
-  delete(key: K): boolean {
-    return this.map.delete(key);
-  }
-
-  /** Get current size. */
-  size(): number {
-    return this.map.size;
-  }
-
-  /** Get capacity. */
-  getCapacity(): number {
-    return this.capacity;
-  }
-
-  /** Resize capacity. Evicts from LRU if shrinking. */
-  resize(newCapacity: number): void {
-    if (newCapacity <= 0) throw new Error('capacity must be > 0');
-    while (this.map.size > newCapacity) {
-      const lruKey = this.map.keys().next().value;
-      if (lruKey !== undefined) {
-        this.map.delete(lruKey);
-        this.evictions += 1;
-      }
-    }
-    this.capacity = newCapacity;
-  }
-
-  /** Clear all entries. */
-  clear(): void {
-    this.map.clear();
-    this.hits = 0;
-    this.misses = 0;
-    this.evictions = 0;
-  }
-
-  /** Get all keys, LRU first. */
   keys(): K[] {
-    return Array.from(this.map.keys());
+    const r: K[] = [];
+    let cur = this._head!.next;
+    while (cur !== this._tail) {
+      r.push(cur!.key);
+      cur = cur!.next;
+    }
+    return r;
   }
 
-  /** Get all values, LRU first. */
-  values(): V[] {
-    return Array.from(this.map.values());
+  private _addToFront(n: CacheNode<K, V>): void {
+    n.next = this._head!.next;
+    n.prev = this._head;
+    this._head!.next!.prev = n;
+    this._head!.next = n;
   }
 
-  /** Most recently used key. */
-  peekMRU(): K | undefined {
-    let mru: K | undefined;
-    for (const k of this.map.keys()) mru = k;
-    return mru;
+  private _remove(n: CacheNode<K, V>): void {
+    n.prev!.next = n.next;
+    n.next!.prev = n.prev;
   }
 
-  /** Least recently used key. */
-  peekLRU(): K | undefined {
-    return this.map.keys().next().value;
-  }
-
-  /** Get statistics. */
-  stats(): { size: number; capacity: number; hits: number; misses: number; hitRate: number; evictions: number } {
-    const total = this.hits + this.misses;
-    return {
-      size: this.map.size,
-      capacity: this.capacity,
-      hits: this.hits,
-      misses: this.misses,
-      hitRate: total > 0 ? this.hits / total : 0,
-      evictions: this.evictions,
-    };
+  private _moveToFront(n: CacheNode<K, V>): void {
+    this._remove(n);
+    this._addToFront(n);
   }
 }
