@@ -9,7 +9,7 @@
  * - Periodic cache cleanup for dynamic content
  */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const APP_SHELL_CACHE = `appshell-${CACHE_VERSION}`;
@@ -31,13 +31,17 @@ const CDN_DOMAINS = [
 ];
 
 // App Shell assets - core assets that should always be cached
+// Paths are computed relative to the SW's own location so the same
+// file works regardless of subdirectory (e.g. GitHub Pages project sites).
+const SW_BASE = self.location.pathname.replace(/sw\.js$/, '');
 const APP_SHELL_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icons.svg',
-  '/favicon.svg',
-  '/icon.svg',
+  SW_BASE,
+  SW_BASE + 'index.html',
+  SW_BASE + 'manifest.json',
+  SW_BASE + 'icon.svg',
+  SW_BASE + 'favicon.svg',
+  SW_BASE + 'icons/192x192.png',
+  SW_BASE + 'icons/512x512.png',
 ];
 
 // Static assets that can be cached indefinitely (immutable with hash naming)

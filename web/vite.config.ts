@@ -211,10 +211,14 @@ export default defineConfig({
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks(id) {
-          // React 19: bundle react + react-dom together (sharing __CLIENT_INTERNALS__)
-          // and inline react-dom/client to avoid 'undefined' on chunk boundary.
+          // React 19: bundle react + react-dom together with the entry chunk
+          // (sharing __CLIENT_INTERNALS__) and inline so it loads before
+          // vendor-antd, which accesses React.version at module init time.
+          // If react is in a separate chunk loaded after antd, the
+          // reference is undefined and "Cannot read .version" errors.
+          // We keep it in the main entry by NOT chunking react out.
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/scheduler/')) {
-            return 'vendor-react';
+            return undefined; // keep in entry chunk
           }
           // Ant Design - all antd packages (large library)
           if (id.includes('node_modules/antd/') || id.includes('node_modules/@ant-design/')) {
