@@ -211,12 +211,10 @@ export default defineConfig({
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks(id) {
-          // React core - split react and react-dom for better caching
-          if (id.includes('node_modules/react/')) {
+          // React 19: bundle react + react-dom together (sharing __CLIENT_INTERNALS__)
+          // and inline react-dom/client to avoid 'undefined' on chunk boundary.
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/scheduler/')) {
             return 'vendor-react';
-          }
-          if (id.includes('node_modules/react-dom/')) {
-            return 'vendor-react-dom';
           }
           // Ant Design - all antd packages (large library)
           if (id.includes('node_modules/antd/') || id.includes('node_modules/@ant-design/')) {
