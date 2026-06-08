@@ -24,6 +24,11 @@ import type { RoutingDecision, RoutingExplanation } from './routing-history/inde
 // Re-export TaskType for convenience
 export { type TaskType } from './providers-ai-subscription';
 
+// Static imports for cost tracker / alert (replacing dynamic import to
+// fix esbuild "Unexpected export" parse error)
+import { calculateCost as _calcCost, addRecord as _addRecord } from './cost-tracker';
+import { getCostAlertService as _getCostAlert } from './cost-alert';
+
 // Local model support - task types that can use local models
 const LOCAL_CAPABLE_TASKS = ['quick-summary', 'tag-generation', 'intent-classification'];
 
@@ -305,12 +310,11 @@ function recordCostAsync(
 ): void {
   // Static import (previously dynamic, refactored for esbuild compat)
   try {
-    const { calculateCost, addRecord } = require('./cost-tracker');
     const inputTokens = usage?.promptTokens || 0;
     const outputTokens = usage?.completionTokens || 0;
-    const costUSD = calculateCost(modelId, inputTokens, outputTokens);
+    const costUSD = _calcCost(modelId, inputTokens, outputTokens);
 
-    addRecord({
+    _addRecord({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       timestamp: Date.now(),
       taskType,
@@ -336,8 +340,7 @@ function triggerCostAlertCheck(): void {
   if (typeof window === 'undefined') return; // Only run in browser
 
   try {
-    const { getCostAlertService } = require('./cost-alert');
-    const service = getCostAlertService();
+    const service = _getCostAlert();
     service.checkAndAlert().catch(() => {
       // Silently fail
     });
