@@ -1,144 +1,114 @@
 /**
- * AVLTree — self-balancing BST (height-balanced)
- *
- * Inspired by: Adelson-Velsky and Landis 1962
- *
- * Balance factor of any node is -1, 0, or 1.
- * On insert, rebalance with rotations.
- *
- * Supports: insert, has, inorder, height, isValid, min, max, size.
+ * AVLTree — self-balancing BST
  */
 
-interface AVLNode<T> {
-  key: T;
-  height: number;
-  left: AVLNode<T> | null;
-  right: AVLNode<T> | null;
+class AVLNode<T> {
+  value: T;
+  left: AVLNode<T> | null = null;
+  right: AVLNode<T> | null = null;
+  height = 1;
+  constructor(value: T) { this.value = value; }
 }
 
 export class AVLTree<T> {
-  private root: AVLNode<T> | null = null;
-  private cmp: (a: T, b: T) => number;
-  private count: number = 0;
+  private _root: AVLNode<T> | null = null;
+  private _size = 0;
 
-  constructor(comparator?: (a: T, b: T) => number) {
-    this.cmp = comparator ?? ((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  size(): number { return this._size; }
+  isEmpty(): boolean { return this._size === 0; }
+
+  private _h(n: AVLNode<T> | null): number { return n?.height ?? 0; }
+  private _bf(n: AVLNode<T>): number { return this._h(n.left) - this._h(n.right); }
+  private _update(n: AVLNode<T>): void { n.height = 1 + Math.max(this._h(n.left), this._h(n.right)); }
+
+  private _rotateRight(y: AVLNode<T>): AVLNode<T> {
+    const x = y.left!;
+    y.left = x.right;
+    x.right = y;
+    this._update(y);
+    this._update(x);
+    return x;
   }
 
-  size(): number { return this.count; }
-  isEmpty(): boolean { return this.root === null; }
-  height(): number { return this.root ? this.root.height : 0; }
-
-  insert(key: T): void {
-    this.root = this.insertRec(this.root, key);
-    this.count += 1;
+  private _rotateLeft(x: AVLNode<T>): AVLNode<T> {
+    const y = x.right!;
+    x.right = y.left;
+    y.left = x;
+    this._update(x);
+    this._update(y);
+    return y;
   }
 
-  has(key: T): boolean {
-    let n = this.root;
-    while (n) {
-      const c = this.cmp(key, n.key);
-      if (c === 0) return true;
-      n = c < 0 ? n.left : n.right;
+  private _balance(n: AVLNode<T>): AVLNode<T> {
+    this._update(n);
+    const bf = this._bf(n);
+    if (bf > 1) {
+      if (this._bf(n.left!) < 0) n.left = this._rotateLeft(n.left!);
+      return this._rotateRight(n);
+    }
+    if (bf < -1) {
+      if (this._bf(n.right!) > 0) n.right = this._rotateRight(n.right!);
+      return this._rotateLeft(n);
+    }
+    return n;
+  }
+
+  insert(value: T): void {
+    this._root = this._insert(this._root, value);
+    this._size++;
+  }
+  private _insert(n: AVLNode<T> | null, value: T): AVLNode<T> {
+    if (!n) return new AVLNode(value);
+    if (value < n.value) n.left = this._insert(n.left, value);
+    else if (value > n.value) n.right = this._insert(n.right, value);
+    else { this._size--; return n; }
+    return this._balance(n);
+  }
+
+  contains(value: T): boolean {
+    let cur = this._root;
+    while (cur) {
+      if (value === cur.value) return true;
+      cur = value < cur.value ? cur.left : cur.right;
     }
     return false;
   }
 
   min(): T | null {
-    if (!this.root) return null;
-    let n = this.root;
-    while (n.left) n = n.left;
-    return n.key;
+    if (!this._root) return null;
+    let cur = this._root;
+    while (cur.left) cur = cur.left;
+    return cur.value;
   }
 
   max(): T | null {
-    if (!this.root) return null;
-    let n = this.root;
-    while (n.right) n = n.right;
-    return n.key;
+    if (!this._root) return null;
+    let cur = this._root;
+    while (cur.right) cur = cur.right;
+    return cur.value;
   }
 
-  inorder(): T[] {
-    const out: T[] = [];
-    this.inorderRec(this.root, out);
-    return out;
+  inOrder(): T[] {
+    const r: T[] = [];
+    this._inOrder(this._root, r);
+    return r;
   }
-
-  isValid(): boolean {
-    return this.validateNode(this.root) !== -1;
-  }
-
-  private validateNode(n: AVLNode<T> | null): number {
-    if (!n) return 0;
-    const l = this.validateNode(n.left);
-    const r = this.validateNode(n.right);
-    if (l === -1 || r === -1) return -1;
-    if (Math.abs(l - r) > 1) return -1;
-    return Math.max(l, r) + 1;
-  }
-
-  private inorderRec(n: AVLNode<T> | null, out: T[]): void {
+  private _inOrder(n: AVLNode<T> | null, r: T[]): void {
     if (!n) return;
-    this.inorderRec(n.left, out);
-    out.push(n.key);
-    this.inorderRec(n.right, out);
+    this._inOrder(n.left, r);
+    r.push(n.value);
+    this._inOrder(n.right, r);
   }
 
-  private heightOf(n: AVLNode<T> | null): number {
-    return n ? n.height : 0;
-  }
+  height(): number { return this._h(this._root); }
 
-  private updateHeight(n: AVLNode<T>): void {
-    n.height = Math.max(this.heightOf(n.left), this.heightOf(n.right)) + 1;
+  isBalanced(): boolean {
+    return this._isBalanced(this._root);
   }
-
-  private balanceFactor(n: AVLNode<T>): number {
-    return this.heightOf(n.left) - this.heightOf(n.right);
-  }
-
-  private rotateRight(y: AVLNode<T>): AVLNode<T> {
-    const x = y.left!;
-    const t = x.right;
-    x.right = y;
-    y.left = t;
-    this.updateHeight(y);
-    this.updateHeight(x);
-    return x;
-  }
-
-  private rotateLeft(x: AVLNode<T>): AVLNode<T> {
-    const y = x.right!;
-    const t = y.left;
-    y.left = x;
-    x.right = t;
-    this.updateHeight(x);
-    this.updateHeight(y);
-    return y;
-  }
-
-  private rebalance(n: AVLNode<T>): AVLNode<T> {
-    this.updateHeight(n);
-    const bf = this.balanceFactor(n);
-    if (bf > 1) {
-      if (this.balanceFactor(n.left!) < 0) {
-        n.left = this.rotateLeft(n.left!);
-      }
-      return this.rotateRight(n);
-    }
-    if (bf < -1) {
-      if (this.balanceFactor(n.right!) > 0) {
-        n.right = this.rotateRight(n.right!);
-      }
-      return this.rotateLeft(n);
-    }
-    return n;
-  }
-
-  private insertRec(n: AVLNode<T> | null, key: T): AVLNode<T> {
-    if (!n) return { key, height: 1, left: null, right: null };
-    const c = this.cmp(key, n.key);
-    if (c < 0) n.left = this.insertRec(n.left, key);
-    else n.right = this.insertRec(n.right, key);
-    return this.rebalance(n);
+  private _isBalanced(n: AVLNode<T> | null): boolean {
+    if (!n) return true;
+    const bf = this._bf(n);
+    if (Math.abs(bf) > 1) return false;
+    return this._isBalanced(n.left) && this._isBalanced(n.right);
   }
 }
