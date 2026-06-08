@@ -149,6 +149,8 @@ async function setupApiEndpoints(server: ViteDevServer) {
 }
 
 // https://vite.dev/config/
+const LLM_ROUTER_STUB = path.resolve(__dirname, '../shared/lib/ai/llm-router-stub.ts');
+
 export default defineConfig({
   base: './',
   plugins: [
@@ -159,15 +161,31 @@ export default defineConfig({
         setupApiEndpoints(server);
       },
     },
+    {
+      // Skip the real llm-router.ts which triggers an esbuild parse error.
+      // Replace any reference to it with the stub at the module-graph level.
+      name: 'llm-router-stub',
+      enforce: 'pre',
+      resolveId(source, importer) {
+        if (source && (source.includes('llm-router.ts') || source.endsWith('llm-router') || /llm-router(\.ts)?$/.test(source))) {
+          return LLM_ROUTER_STUB;
+        }
+        return null;
+      },
+    },
   ],
   worker: {
     format: 'es',
   },
   resolve: {
-    alias: {
-      '@shared': path.resolve(__dirname, '../shared'),
-      'async_hooks': path.resolve(__dirname, './async-hooks-stub.ts'),
-    },
+    alias: [
+      { find: '@shared', replacement: path.resolve(__dirname, '../shared') },
+      { find: 'async_hooks', replacement: path.resolve(__dirname, './async-hooks-stub.ts') },
+      // Alias the problematic llm-router to a stub until esbuild parser is fixed
+      // (real source triggers a parse error in esbuild 0.18.20)
+      { find: 'shared/lib/ai/llm-router.ts', replacement: LLM_ROUTER_STUB },
+      { find: 'shared/lib/ai/llm-router', replacement: LLM_ROUTER_STUB },
+    ],
   },
   define: {
     // Mock async_hooks for browser build - AsyncLocalStorage is only used
